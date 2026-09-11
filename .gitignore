@@ -1,0 +1,10 @@
+.coverage
+.dev/
+.pyright/
+.pytest-tmp/
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+htmlcov/
+*.py[cod]

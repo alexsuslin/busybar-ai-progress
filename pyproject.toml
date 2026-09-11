@@ -1,0 +1,51 @@
+[project]
+name = "busybar-codex-status"
+version = "0.1.0"
+description = "Show local Codex lifecycle state on a BUSY Bar"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "busylib>=2.1,<3",
+  "pillow>=11,<13",
+  "platformdirs>=4.3,<5",
+]
+
+[project.scripts]
+busybar-codex = "busybar_codex.cli:main"
+
+[dependency-groups]
+dev = [
+  "pyright>=1.1.400,<2",
+  "pytest>=8.4,<10",
+  "pytest-cov>=6,<8",
+  "ruff>=0.12,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/busybar_codex"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--basetemp=.pytest-tmp"]
+markers = [
+  "emulator: requires the BUSY Bar emulator",
+  "hardware: requires a physical BUSY Bar",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
