@@ -2,6 +2,8 @@ import io
 import json
 from pathlib import Path
 
+import pytest
+
 from busybar_codex.cli import main
 from busybar_codex.events import DisplayState
 from busybar_codex.queue import EventQueue
@@ -101,6 +103,33 @@ def test_doctor_reports_reachable_device(tmp_path: Path) -> None:
 
     assert result == 0
     assert "device: ok (API 25.0.0)" in stdout.getvalue()
+
+
+def test_doctor_reports_redacted_address_and_hook_presence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hooks_dir = tmp_path / ".codex"
+    hooks_dir.mkdir()
+    (hooks_dir / "hooks.json").write_text("{}", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    values = environment(tmp_path)
+    values["BUSYBAR_CODEX_ADDRESS"] = "http://user:private@127.0.0.1:8080"
+    stdout = io.StringIO()
+
+    result = main(
+        ["doctor"],
+        environ=values,
+        stdin=io.StringIO(),
+        stdout=stdout,
+        stderr=io.StringIO(),
+        display_factory=lambda _config: OnlineDisplay(),
+    )
+
+    report = stdout.getvalue()
+    assert result == 0
+    assert "address: http://127.0.0.1:8080" in report
+    assert "hooks: ok" in report
+    assert "private" not in report
 
 
 def test_render_assets_writes_three_png_files(tmp_path: Path) -> None:

@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import NoReturn, Protocol, TextIO, cast
+from urllib.parse import urlsplit
 
 from . import __version__
 from .assets import render_assets
@@ -140,6 +141,16 @@ def _load_reducer(config: Config) -> SessionReducer:
     )
 
 
+def _redacted_address(value: str) -> str:
+    parsed = urlsplit(value)
+    hostname = parsed.hostname or ""
+    if ":" in hostname:
+        hostname = f"[{hostname}]"
+    port = f":{parsed.port}" if parsed.port is not None else ""
+    path = parsed.path.rstrip("/")
+    return f"{parsed.scheme}://{hostname}{port}{path}"
+
+
 def _status(config: Config, stdout: TextIO, display_factory: DisplayFactory) -> int:
     reducer = _load_reducer(config)
     state = reducer.aggregate()
@@ -160,15 +171,23 @@ def _status(config: Config, stdout: TextIO, display_factory: DisplayFactory) -> 
 
 
 def _doctor(config: Config, stdout: TextIO, display_factory: DisplayFactory) -> int:
+    stdout.write(f"python: ok ({sys.version_info.major}.{sys.version_info.minor})\n")
+    stdout.write(f"package: ok ({__version__})\n")
+    stdout.write(f"address: {_redacted_address(config.base_url)}\n")
     try:
         for directory in (config.config_dir, config.state_dir, config.cache_dir, config.log_dir):
             directory.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        stdout.write(f"paths: unavailable ({type(error).__name__})\n")
+        return 1
+    stdout.write("paths: ok\n")
+    hooks_path = Path.cwd() / ".codex" / "hooks.json"
+    stdout.write(f"hooks: {'ok' if hooks_path.is_file() else 'missing'}\n")
+    try:
         version = display_factory(config).probe()
-    except (OSError, DisplayBusyError, DisplayUnavailableError) as error:
+    except (DisplayBusyError, DisplayUnavailableError) as error:
         stdout.write(f"device: unavailable ({type(error).__name__})\n")
         return 1
-    stdout.write(f"python: ok ({sys.version_info.major}.{sys.version_info.minor})\n")
-    stdout.write(f"package: ok ({__version__})\n")
     stdout.write(f"device: ok (API {version})\n")
     return 0
 
