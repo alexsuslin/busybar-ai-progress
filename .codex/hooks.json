@@ -1,0 +1,103 @@
+{
+  "description": "Reflect Codex lifecycle state on a BUSY Bar.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^request_user_input$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-sync --project \"$(git rev-parse --show-toplevel)\" busybar-codex hook",
+            "commandWindows": "powershell -NoProfile -Command \"$r = git rev-parse --show-toplevel; uv run --no-sync --project $r busybar-codex hook\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}
+

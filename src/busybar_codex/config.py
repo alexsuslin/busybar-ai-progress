@@ -52,7 +52,11 @@ class Config:
         """Load a TOML file and apply environment overrides."""
 
         env = os.environ if environ is None else environ
-        config_path = path or Path(DIRS.user_config_dir) / "config.toml"
+        config_dir = Path(env.get("BUSYBAR_CODEX_CONFIG_DIR", DIRS.user_config_dir))
+        state_dir = Path(env.get("BUSYBAR_CODEX_STATE_DIR", DIRS.user_state_dir))
+        cache_dir = Path(env.get("BUSYBAR_CODEX_CACHE_DIR", DIRS.user_cache_dir))
+        log_dir = Path(env.get("BUSYBAR_CODEX_LOG_DIR", DIRS.user_log_dir))
+        config_path = path or config_dir / "config.toml"
         raw: dict[str, object] = (
             tomllib.loads(config_path.read_text(encoding="utf-8")) if config_path.exists() else {}
         )
@@ -112,4 +116,8 @@ class Config:
             poll_interval_seconds=poll_interval_seconds,
             request_timeout_seconds=request_timeout_seconds,
             log_level=log_level,
+            config_dir=config_dir,
+            state_dir=state_dir,
+            cache_dir=cache_dir,
+            log_dir=log_dir,
         )

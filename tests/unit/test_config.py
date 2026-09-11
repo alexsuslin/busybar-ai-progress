@@ -46,3 +46,20 @@ def test_environment_can_supply_private_token(tmp_path: Path) -> None:
     )
 
     assert config.token == "private-token"
+
+
+def test_environment_can_isolate_local_data_directories(tmp_path: Path) -> None:
+    config = Config.load(
+        path=tmp_path / "missing.toml",
+        environ={
+            "BUSYBAR_CODEX_CONFIG_DIR": str(tmp_path / "config"),
+            "BUSYBAR_CODEX_STATE_DIR": str(tmp_path / "state"),
+            "BUSYBAR_CODEX_CACHE_DIR": str(tmp_path / "cache"),
+            "BUSYBAR_CODEX_LOG_DIR": str(tmp_path / "logs"),
+        },
+    )
+
+    assert config.config_dir == tmp_path / "config"
+    assert config.state_dir == tmp_path / "state"
+    assert config.cache_dir == tmp_path / "cache"
+    assert config.log_dir == tmp_path / "logs"
