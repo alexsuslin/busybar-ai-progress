@@ -32,7 +32,6 @@ def test_all_windows_hook_commands_run_inside_codex_powershell(tmp_path: Path) -
     assert len(commands) == 1
     assert configured_timeouts == {3}
     command = commands.pop()
-    hook_timeout = configured_timeouts.pop()
     payload = json.dumps(
         {
             "hook_event_name": "UserPromptSubmit",
@@ -56,7 +55,9 @@ def test_all_windows_hook_commands_run_inside_codex_powershell(tmp_path: Path) -
         input=payload,
         capture_output=True,
         text=True,
-        timeout=hook_timeout,
+        # The test starts an extra outer shell; cold Windows CI startup is not
+        # part of the configured hook timeout asserted above.
+        timeout=15,
         check=False,
     )
 
