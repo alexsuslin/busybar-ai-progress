@@ -4,6 +4,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from typing import cast
 
 from .events import DisplayState
@@ -75,6 +76,28 @@ def input_actions(message: object) -> list[str | int]:
     return result
 
 
+class WorkActivity(StrEnum):
+    THINK = "THINK"
+    TOOL = "TOOL"
+    CHECK = "CHECK"
+    COMPACT = "COMPACT"
+
+
+def activity_for(record: SessionRecord | None) -> WorkActivity | None:
+    if record is None or record.state is not DisplayState.CODING:
+        return None
+    return {
+        "prompt": WorkActivity.THINK,
+        "rollout_started": WorkActivity.THINK,
+        "tool_started": WorkActivity.TOOL,
+        "tool_complete": WorkActivity.THINK,
+        "user_input_complete": WorkActivity.THINK,
+        "permission_check": WorkActivity.CHECK,
+        "compact_started": WorkActivity.COMPACT,
+        "compact_complete": WorkActivity.THINK,
+    }.get(record.reason)
+
+
 @dataclass(frozen=True, slots=True)
 class DisplayFrame:
     state: DisplayState
@@ -83,3 +106,4 @@ class DisplayFrame:
     question_count: int
     telemetry: Telemetry
     hidden: bool = False
+    activity: WorkActivity | None = None

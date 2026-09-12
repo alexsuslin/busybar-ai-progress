@@ -88,6 +88,11 @@ def test_new_session_replaces_old_done_and_question_gets_attention() -> None:
     assert (chosen := dashboard.select(sessions)) is not None and chosen.session_id == "new"
     sessions.apply(
         SafeEvent(
+            "old", None, DisplayState.CODING, (now + timedelta(seconds=1.5)).isoformat(), "prompt"
+        )
+    )
+    sessions.apply(
+        SafeEvent(
             "old",
             None,
             DisplayState.QUESTION,

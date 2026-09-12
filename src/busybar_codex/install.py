@@ -84,6 +84,8 @@ def install_hooks(
         "PermissionRequest",
         "PreToolUse",
         "PostToolUse",
+        "PreCompact",
+        "PostCompact",
         "Stop",
         "SessionEnd",
     ]
@@ -106,10 +108,8 @@ def install_hooks(
         if client == "codex":
             handler["commandWindows"] = _command(state_dir, "hook", windows=True)
         group: dict[str, object] = {"hooks": [handler]}
-        if name == "PreToolUse":
-            group["matcher"] = "^(request_user_input|AskUserQuestion)$"
         if name == "Notification":
-            group["matcher"] = "^(permission_prompt|idle_prompt)$"
+            group["matcher"] = "^permission_prompt$"
         groups.append(group)
         hooks[name] = groups
     raw["hooks"] = hooks

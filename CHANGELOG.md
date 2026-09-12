@@ -2,11 +2,23 @@
 
 All notable changes to this project are documented in this file.
 
-## 0.1.1 - 2026-09-12
+## 0.1.1 - Unreleased
+
+- Show CHECK for permission evaluation instead of treating every tool approval check as ASK.
+- Show THINK between tools, TOOL during ordinary tool calls and COMPACT during compaction.
+  Explicit question tools retain ASK until their response; stale tool events cannot reopen
+  completed sessions or clear unrelated pending questions.
+- Ignore idle notifications and trailing question marks as ASK signals; retain explicit
+  input-request phrases as a conservative final-message fallback.
+- Replace effort words with one-pixel-wide vertical scales on both displays. Fill the current
+  model's supported levels from the bottom in the status color, with remaining levels gray.
+  Codex reads exact-model capabilities from a bounded local catalog; unknown ranges stay hidden.
+- Subscribe installed hooks to ordinary tools and compaction. Reinstall owned hooks and restart
+  the display daemon to apply the new subscriptions and layout.
 
 - Translate the beginner README, research notes, roadmap and remaining planning prose into English.
 - Require English for all project documentation and public GitHub release text in AGENTS.md.
-- Publish English release notes and refreshed source archives; application behavior is unchanged.
+- Prepare English release notes and refreshed source archives.
 
 ## 0.1.0 - 2026-09-12
 

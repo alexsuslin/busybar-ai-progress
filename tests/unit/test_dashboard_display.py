@@ -47,7 +47,7 @@ def test_frame_renders_both_screens_and_actual_context_width(tmp_path: Path) -> 
     model_label = next(item for item in payload.elements if item.id == "front-state")
     assert isinstance(model_label, types.TextElement) and model_label.text == "GPT-5.4"
     back_label = next(item for item in payload.elements if item.id == "back-state")
-    assert isinstance(front_label, types.TextElement) and front_label.text == "#01 RUN HIGH"
+    assert isinstance(front_label, types.TextElement) and front_label.text == "#01 RUN"
     assert isinstance(back_label, types.TextElement) and back_label.text == "CODING  #01"
     progress = next(item for item in payload.elements if item.id == "front-context-fill")
     assert isinstance(progress, types.RectangleElement)
@@ -114,4 +114,101 @@ def test_front_provider_icons_are_visible_for_both_model_families() -> None:
         assert isinstance(icon, types.ImageElement)
         assert icon.opacity == 100 and icon.path == f"provider-{provider}.png"
         text = next(item for item in elements if item.id == "front-session")
-        assert isinstance(text, types.TextElement) and text.text == "#02 ASK HIGH"
+        assert isinstance(text, types.TextElement) and text.text == "#02 ASK"
+
+
+def test_effort_words_do_not_take_space_reserved_for_activity() -> None:
+    from busybar_codex.rendering import frame_elements
+
+    elements = frame_elements(
+        DisplayFrame(DisplayState.CODING, "#01", 1, 0, Telemetry("gpt-5.6-sol", "high"))
+    )
+    front = next(item for item in elements if item.id == "front-session")
+    back = next(item for item in elements if item.id == "back-effort")
+    assert isinstance(front, types.TextElement) and front.text == "#01 RUN"
+    assert isinstance(back, types.TextElement) and back.text == ""
+
+
+def test_effort_scale_fills_bottom_three_of_five_single_pixels() -> None:
+    from busybar_codex.rendering import frame_elements
+
+    data = Telemetry(
+        "gpt-example", "high", effort_levels=("low", "medium", "high", "xhigh", "ultra")
+    )
+    elements = frame_elements(DisplayFrame(DisplayState.CODING, "#01", 1, 0, data))
+    pixels = [item for item in elements if item.id.startswith("front-effort-")]
+    assert len(pixels) == 8
+    visible = [
+        item
+        for item in pixels
+        if isinstance(item, types.RectangleElement) and item.fill_colors != ["#000000FF"]
+    ]
+    assert len(visible) == 5
+    assert all(
+        isinstance(item, types.RectangleElement) and item.width == item.height == 1
+        for item in pixels
+    )
+    assert [item.y for item in visible] == [13, 12, 11, 10, 9]
+    assert all(item.x == 71 for item in visible)
+    colors = [item.fill_colors for item in visible]
+    assert colors == [["#2B7FFFFF"]] * 3 + [["#444444FF"]] * 2
+    for item in elements:
+        if item.id in {"front-state", "front-session"}:
+            assert (
+                isinstance(item, types.TextElement)
+                and item.width is not None
+                and item.x + item.width <= 70
+            )
+
+
+def test_effort_scale_tracks_actual_model_levels_and_hides_stale_pixels() -> None:
+    from busybar_codex.rendering import frame_elements
+
+    data = Telemetry(
+        "gpt-example", "high", effort_levels=("low", "medium", "high", "xhigh", "max", "ultra")
+    )
+    previous = frame_elements(DisplayFrame(DisplayState.QUESTION, "#01", 1, 1, data))
+    front = [item for item in previous if item.id.startswith("front-effort-")]
+    assert (
+        sum(
+            isinstance(item, types.RectangleElement) and item.fill_colors != ["#000000FF"]
+            for item in front
+        )
+        == 6
+    )
+    assert (
+        sum(
+            isinstance(item, types.RectangleElement) and item.fill_colors == ["#FFB000FF"]
+            for item in front
+        )
+        == 3
+    )
+    missing = frame_elements(DisplayFrame(DisplayState.CODING, "#01", 1, 0, Telemetry()))
+    assert {(item.id, type(item), item.display) for item in previous} == {
+        (item.id, type(item), item.display) for item in missing
+    }
+    for item in missing:
+        if "-effort-" in item.id:
+            assert isinstance(item, types.RectangleElement)
+            assert item.fill_colors == ["#000000FF"]
+            assert "opacity" not in item.model_dump()
+
+
+def test_activity_phase_labels_never_override_user_question_or_completion() -> None:
+    from busybar_codex.dashboard import WorkActivity
+    from busybar_codex.rendering import frame_elements
+
+    for activity, word in [
+        (WorkActivity.THINK, "THINK"),
+        (WorkActivity.TOOL, "TOOL"),
+        (WorkActivity.CHECK, "CHECK"),
+        (WorkActivity.COMPACT, "COMPACT"),
+    ]:
+        for state, label in [
+            (DisplayState.CODING, word),
+            (DisplayState.QUESTION, "ASK"),
+            (DisplayState.DONE, "DONE"),
+        ]:
+            frame = DisplayFrame(state, "#01", 1, 0, Telemetry(), activity=activity)
+            front = next(item for item in frame_elements(frame) if item.id == "front-session")
+            assert isinstance(front, types.TextElement) and front.text == "#01 " + label

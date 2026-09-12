@@ -1,6 +1,8 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from busybar_codex.events import DisplayState, SafeEvent
 from busybar_codex.state import SessionReducer
 
@@ -222,3 +224,148 @@ def test_invalid_dismissal_snapshot_is_rejected(tmp_path: Path) -> None:
         snapshot.write_text(json.dumps({**original, "dismissed": dismissed}))
         with pytest.raises(ValueError):
             SessionReducer.load(snapshot, 86400)
+
+
+ACTIVITY_REASONS = [
+    "tool_started",
+    "tool_complete",
+    "permission_check",
+    "compact_started",
+    "compact_complete",
+    "user_input_complete",
+]
+
+
+@pytest.mark.parametrize("reason", ACTIVITY_REASONS)
+@pytest.mark.parametrize("prior", [None, "stop", "final_question", "other_turn"])
+def test_activity_does_not_revive_terminal_missing_or_other_turn_session(
+    reason: str, prior: str | None
+) -> None:
+    reducer = SessionReducer(86400)
+    if prior is not None:
+        state = {
+            "stop": DisplayState.DONE,
+            "final_question": DisplayState.QUESTION,
+            "other_turn": DisplayState.CODING,
+        }[prior]
+        reducer.apply(event("s1", state, reason=prior, turn_id="new", age_seconds=1))
+        reducer.dismiss("s1")
+    before = reducer.records.copy()
+    reducer.apply(
+        event(
+            "s1",
+            DisplayState.CODING,
+            reason=reason,
+            turn_id="old" if prior == "other_turn" else "new",
+        )
+    )
+    assert reducer.records == before
+    assert reducer.visible_records == {}
+
+
+@pytest.mark.parametrize("reason", ACTIVITY_REASONS[:-1])
+def test_unrelated_activity_preserves_explicit_user_input_wait(reason: str) -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", age_seconds=1))
+    before = reducer.records["s1"]
+    reducer.apply(event("s1", DisplayState.CODING, reason=reason))
+    assert reducer.records["s1"] == before
+
+
+def test_explicit_question_completion_resumes_and_reopens_session() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(
+        event("s1", DisplayState.QUESTION, reason="user_input", turn_id="t1", age_seconds=1)
+    )
+    reducer.dismiss("s1")
+    reducer.apply(event("s1", DisplayState.CODING, reason="user_input_complete", turn_id="t1"))
+    assert reducer.visible_records["s1"].state is DisplayState.CODING
+
+
+@pytest.mark.parametrize("reason", ACTIVITY_REASONS)
+def test_current_activity_updates_active_session_without_losing_known_turn(reason: str) -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.CODING, turn_id="current", age_seconds=1))
+    reducer.apply(event("s1", DisplayState.CODING, reason=reason))
+    assert reducer.records["s1"].reason == reason
+    assert reducer.records["s1"].turn_id == "current"
+
+
+@pytest.mark.parametrize("prior", ["stop", "final_question", "other_turn"])
+def test_late_question_tool_cannot_override_terminal_or_newer_turn(prior: str) -> None:
+    reducer = SessionReducer(86400)
+    state = {
+        "stop": DisplayState.DONE,
+        "final_question": DisplayState.QUESTION,
+        "other_turn": DisplayState.CODING,
+    }[prior]
+    reducer.apply(event("s1", state, reason=prior, turn_id="current", age_seconds=1))
+    before = reducer.records["s1"]
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", turn_id="old"))
+    assert reducer.records["s1"] == before
+
+
+def test_question_hook_without_turn_preserves_turn_for_response_matching() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.CODING, turn_id="current", age_seconds=2))
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", age_seconds=1))
+    assert reducer.records["s1"].turn_id == "current"
+    reducer.apply(event("s1", DisplayState.CODING, reason="user_input_complete", turn_id="old"))
+    assert reducer.records["s1"].state is DisplayState.QUESTION
+
+
+def test_new_prompt_clears_explicit_question_and_current_activity_reopens_card() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", age_seconds=2))
+    reducer.apply(event("s1", DisplayState.CODING, reason="prompt", age_seconds=1))
+    reducer.dismiss("s1")
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_started"))
+    assert reducer.visible_records["s1"].reason == "tool_started"
+
+
+@pytest.mark.parametrize("reason", [*ACTIVITY_REASONS, "user_input"])
+def test_hook_continuation_after_rollout_root_uses_hook_turn(reason: str) -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(
+        event("s1", DisplayState.CODING, reason="rollout_started", turn_id="root", age_seconds=1)
+    )
+    state = DisplayState.QUESTION if reason == "user_input" else DisplayState.CODING
+    reducer.apply(event("s1", state, reason=reason, turn_id="continuation"))
+    assert reducer.records["s1"].reason == reason
+    assert reducer.records["s1"].turn_id == "continuation"
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_complete", turn_id="other-hook"))
+    assert reducer.records["s1"].reason == reason
+    assert reducer.records["s1"].turn_id == "continuation"
+
+
+def test_permission_notification_does_not_erase_pending_explicit_question() -> None:
+    from busybar_codex.events import normalize_hook
+
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.CODING, age_seconds=3))
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", age_seconds=2))
+    notification = normalize_hook(
+        {
+            "session_id": "s1",
+            "hook_event_name": "Notification",
+            "notification_type": "permission_prompt",
+        },
+        NOW - timedelta(seconds=1),
+    )
+    assert notification is not None
+    reducer.apply(notification)
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_complete"))
+    assert reducer.records["s1"].state is DisplayState.QUESTION
+    assert reducer.records["s1"].reason == "user_input"
+
+
+def test_hook_without_turn_does_not_promote_rollout_root_to_hook_turn() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(
+        event("s1", DisplayState.CODING, reason="rollout_started", turn_id="root", age_seconds=2)
+    )
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_started", age_seconds=1))
+    assert reducer.records["s1"].turn_id is None
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", turn_id="continuation"))
+    assert reducer.records["s1"].state is DisplayState.QUESTION
+    assert reducer.records["s1"].turn_id == "continuation"

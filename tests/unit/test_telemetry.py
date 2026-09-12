@@ -259,3 +259,184 @@ def test_future_marker_does_not_mask_later_valid_completion(tmp_path: Path) -> N
     )
     event = CodexTelemetry(tmp_path).read_lifecycle("a")[-1]
     assert event.timestamp == "2026-09-12T06:31:00+00:00"
+
+
+def test_telemetry_effort_capabilities_round_trip_and_old_records() -> None:
+    value = Telemetry.from_json(
+        '{"model":"gpt-example","effort":"high",'
+        '"effort_levels":["low","medium","high","xhigh","ultra"]}'
+    )
+    assert value.effort_levels == ("low", "medium", "high", "xhigh", "ultra")
+    assert Telemetry.from_json(value.to_json()) == value
+    assert Telemetry.from_json('{"effort":"high"}').effort_levels == ()
+
+
+@pytest.mark.parametrize(
+    "levels",
+    [
+        None,
+        True,
+        "low",
+        ["low", True],
+        ["low", "unknown"],
+        ["low", "low"],
+        ["high", "low"],
+        ["low"] * 9,
+        [["low"]],
+        ["LOW"],
+        [" low"],
+        ["low"],
+    ],
+)
+def test_invalid_or_mismatched_effort_capabilities_are_unknown(levels: object) -> None:
+    value = Telemetry.from_json(json.dumps({"effort": "high", "effort_levels": levels}))
+    assert value.effort_levels == ()
+
+
+def write_model_catalog(path: Path, models: object) -> None:
+    path.write_text(json.dumps({"models": models}), encoding="utf-8")
+
+
+def model_capability(slug: str, efforts: tuple[str, ...]) -> dict[str, object]:
+    return {
+        "slug": slug,
+        "base_instructions": "PRIVATE",
+        "supported_reasoning_levels": [
+            {"effort": effort, "description": "PRIVATE"} for effort in efforts
+        ],
+    }
+
+
+def write_effort_rollout(path: Path, model: str, effort: str = "high") -> None:
+    path.write_text(
+        json.dumps({"type": "turn_context", "payload": {"model": model, "effort": effort}}) + "\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize(
+    "levels",
+    [
+        ("low", "medium", "high", "xhigh", "ultra"),
+        ("low", "medium", "high", "xhigh", "max", "ultra"),
+    ],
+)
+def test_codex_effort_capabilities_use_exact_current_model(
+    tmp_path: Path, levels: tuple[str, ...]
+) -> None:
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    rollout = sessions / "rollout-a.jsonl"
+    write_effort_rollout(rollout, "gpt-6-astra")
+    write_model_catalog(tmp_path / "models_cache.json", [model_capability("gpt-6-astra", levels)])
+    source = CodexTelemetry(sessions)
+    value = source.read("a")
+    assert value.effort_levels == levels
+    assert value.effort_levels.index("high") == 2
+    assert "PRIVATE" not in value.to_json()
+    write_effort_rollout(rollout, "openai/gpt-6-astra")
+    assert source.read("a").effort_levels == ()
+    write_effort_rollout(rollout, "gpt-6-astra", "none")
+    assert source.read("a").effort_levels == ()
+
+
+def test_catalog_replacement_truncation_and_removal_invalidate_levels(tmp_path: Path) -> None:
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    write_effort_rollout(sessions / "rollout-a.jsonl", "gpt-example")
+    catalog = tmp_path / "models_cache.json"
+    source = CodexTelemetry(sessions)
+    assert source.read("a").effort_levels == ()
+    write_model_catalog(catalog, [model_capability("gpt-example", ("low", "high"))])
+    assert source.read("a").effort_levels == ("low", "high")
+    replacement = tmp_path / "replacement.json"
+    write_model_catalog(replacement, [model_capability("gpt-example", ("medium", "high"))])
+    replacement.replace(catalog)
+    assert source.read("a").effort_levels == ("medium", "high")
+    catalog.write_text('{"models":', encoding="utf-8")
+    assert source.read("a").effort_levels == ()
+    write_model_catalog(catalog, [model_capability("gpt-example", ("low", "high"))])
+    assert source.read("a").effort_levels == ("low", "high")
+    catalog.unlink()
+    assert source.read("a").effort_levels == ()
+
+
+@pytest.mark.parametrize(
+    "models",
+    [
+        None,
+        True,
+        {},
+        [{}],
+        [{"slug": "gpt-example", "supported_reasoning_levels": True}],
+        [{"slug": "gpt-example", "supported_reasoning_levels": [{"effort": True}]}],
+        [model_capability("gpt-example", ("high", "low"))],
+        [model_capability("gpt-example", ("low", "high", "high"))],
+        [model_capability("gpt-example", ("high", "new"))],
+        [model_capability("gpt-example", ("high",))] * 2,
+        [model_capability("gpt-example", ("high",))]
+        + [model_capability(f"gpt-{index}", ("high",)) for index in range(256)],
+    ],
+)
+def test_invalid_catalog_capabilities_fail_safe(tmp_path: Path, models: object) -> None:
+    write_effort_rollout(tmp_path / "rollout-a.jsonl", "gpt-example")
+    catalog = tmp_path / "catalog.json"
+    write_model_catalog(catalog, models)
+    assert CodexTelemetry(tmp_path, catalog_path=catalog).read("a").effort_levels == ()
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        json.dumps(
+            {
+                "models": [model_capability("gpt-example", ("high",))],
+                "unused": " " * (2 * 1024 * 1024),
+            }
+        ).encode(),
+        b"[" * 2000 + b"]" * 2000,
+        b'{"models":' + b"9" * 5000 + b"}",
+        b"\xff",
+    ],
+    ids=["oversize", "nested", "huge_integer", "invalid_utf8"],
+)
+def test_oversize_nested_and_malformed_catalog_is_unknown(tmp_path: Path, raw: bytes) -> None:
+    write_effort_rollout(tmp_path / "rollout-a.jsonl", "gpt-example")
+    catalog = tmp_path / "catalog.json"
+    catalog.write_bytes(raw)
+    assert CodexTelemetry(tmp_path, catalog_path=catalog).read("a").effort_levels == ()
+
+
+def test_rollout_gap_and_truncation_drop_effort_capabilities(tmp_path: Path) -> None:
+    rollout = tmp_path / "rollout-a.jsonl"
+    write_effort_rollout(rollout, "gpt-example")
+    catalog = tmp_path / "catalog.json"
+    write_model_catalog(catalog, [model_capability("gpt-example", ("low", "high"))])
+    source = CodexTelemetry(tmp_path, catalog_path=catalog)
+    assert source.read("a").effort_levels == ("low", "high")
+    with rollout.open("a", encoding="utf-8") as stream:
+        stream.write((json.dumps({"type": "response_item", "payload": "x" * 10000}) + "\n") * 220)
+    assert source.read("a").effort_levels == ()
+    write_effort_rollout(rollout, "gpt-example")
+    assert source.read("a").effort_levels == ("low", "high")
+    rollout.write_text('{"type":', encoding="utf-8")
+    assert source.read("a").effort_levels == ()
+
+
+def test_replaced_rollout_with_same_size_and_mtime_drops_old_model_levels(tmp_path: Path) -> None:
+    import os
+
+    rollout = tmp_path / "rollout-a.jsonl"
+    write_effort_rollout(rollout, "gpt-first")
+    catalog = tmp_path / "catalog.json"
+    write_model_catalog(catalog, [model_capability("gpt-first", ("low", "high"))])
+    source = CodexTelemetry(tmp_path, catalog_path=catalog)
+    assert source.read("a").effort_levels == ("low", "high")
+    original = rollout.stat()
+    replacement = tmp_path / "replacement.jsonl"
+    write_effort_rollout(replacement, "gpt-other")
+    os.utime(replacement, ns=(original.st_atime_ns, original.st_mtime_ns))
+    replacement.replace(rollout)
+    assert rollout.stat().st_size == original.st_size
+    assert source.read("a").model == "gpt-other"
+    assert source.read("a").effort_levels == ()

@@ -23,8 +23,8 @@ NOW = datetime(2026, 9, 11, tzinfo=UTC)
         ),
         (
             {"hook_event_name": "PermissionRequest", "session_id": "s1"},
-            DisplayState.QUESTION,
-            "permission",
+            DisplayState.CODING,
+            "permission_check",
         ),
         (
             {"hook_event_name": "PostToolUse", "session_id": "s1"},
@@ -66,7 +66,15 @@ def test_request_user_input_becomes_question() -> None:
 
 @pytest.mark.parametrize(
     "message",
-    ["Which option should I use?", "Please choose one option.", "Ответь одним вариантом."],
+    [
+        "Which option should I use?",
+        "Please choose one option.",
+        "Please confirm that I may publish the release?",
+        "Please provide the required project ID.",
+        "Ответь одним вариантом.",
+        "Подтвердите, можно ли публиковать релиз?",
+        "Выберите вариант для продолжения.",
+    ],
 )
 def test_stop_with_blocking_question_stays_question(message: str) -> None:
     event = normalize_hook(
@@ -118,7 +126,7 @@ def test_private_hook_fields_are_not_serialized() -> None:
         {"hook_event_name": "Stop"},
         {"hook_event_name": 123, "session_id": "s1"},
         {"hook_event_name": "Stop", "session_id": 123},
-        {"hook_event_name": "PreToolUse", "session_id": "s1", "tool_name": "exec_command"},
+        {"hook_event_name": "PreToolUse", "session_id": "s1"},
     ],
 )
 def test_irrelevant_or_invalid_payload_is_ignored(payload: dict[str, object]) -> None:
@@ -149,7 +157,7 @@ def test_claude_ask_user_question_is_a_question() -> None:
     assert event.state is DisplayState.QUESTION
 
 
-@pytest.mark.parametrize("tool_name", [[], {}])
+@pytest.mark.parametrize("tool_name", [[], {}, None, True, 123, "", "x" * 129, "bad name"])
 def test_malformed_tool_name_is_ignored(tool_name: object) -> None:
     assert (
         normalize_hook(
@@ -215,3 +223,89 @@ def test_persisted_event_rejects_unnormalized_fields(field: str, value: str) -> 
     raw[field] = value
     with pytest.raises(ValueError):
         SafeEvent.from_json(json.dumps(raw))
+
+
+@pytest.mark.parametrize("tool_name", ["exec_command", "Bash", "mcp__server__tool"])
+def test_ordinary_tool_start_records_activity_without_private_fields(tool_name: str) -> None:
+    from busybar_codex.events import SafeEvent
+
+    event = normalize_hook(
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "s1",
+            "tool_name": tool_name,
+            "tool_input": {"command": "PRIVATE"},
+        },
+        NOW,
+    )
+    assert event is not None
+    assert event.state is DisplayState.CODING
+    assert event.reason == "tool_started"
+    assert tool_name not in event.to_json()
+    assert "PRIVATE" not in event.to_json()
+    assert SafeEvent.from_json(event.to_json()) == event
+
+
+@pytest.mark.parametrize("tool_name", ["request_user_input", "AskUserQuestion"])
+def test_explicit_question_completion_has_separate_safe_reason(tool_name: str) -> None:
+    from busybar_codex.events import SafeEvent
+
+    event = normalize_hook(
+        {"hook_event_name": "PostToolUse", "session_id": "s1", "tool_name": tool_name}, NOW
+    )
+    assert event is not None
+    assert event.state is DisplayState.CODING
+    assert event.reason == "user_input_complete"
+    assert SafeEvent.from_json(event.to_json()) == event
+
+
+@pytest.mark.parametrize(
+    ("hook", "reason"),
+    [("PreCompact", "compact_started"), ("PostCompact", "compact_complete")],
+)
+def test_compaction_records_safe_activity(hook: str, reason: str) -> None:
+    from busybar_codex.events import SafeEvent
+
+    event = normalize_hook(
+        {"hook_event_name": hook, "session_id": "s1", "compact_summary": "PRIVATE"}, NOW
+    )
+    assert event is not None
+    assert event.state is DisplayState.CODING
+    assert event.reason == reason
+    assert "PRIVATE" not in event.to_json()
+    assert SafeEvent.from_json(event.to_json()) == event
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Want me to also add X?",
+        "Would you like me to add optional tests?",
+        "Does that make sense?",
+        "Хочешь, я также добавлю X?",
+        "Готово. Всё понятно?",
+        "The example asks: which option?",
+    ],
+)
+def test_optional_offer_or_generic_question_does_not_claim_human_wait(message: str) -> None:
+    event = normalize_hook(
+        {"session_id": "s1", "hook_event_name": "Stop", "last_assistant_message": message}, NOW
+    )
+    assert event is not None
+    assert event.state is DisplayState.DONE
+    assert event.reason == "stop"
+
+
+def test_idle_notification_after_stop_does_not_reopen_session() -> None:
+    from busybar_codex.state import SessionReducer
+
+    reducer = SessionReducer(86400)
+    stopped = normalize_hook({"session_id": "s1", "hook_event_name": "Stop"}, NOW)
+    assert stopped is not None
+    reducer.apply(stopped)
+    idle = normalize_hook(
+        {"session_id": "s1", "hook_event_name": "Notification", "notification_type": "idle_prompt"},
+        NOW,
+    )
+    assert idle is None
+    assert reducer.records["s1"].state is DisplayState.DONE

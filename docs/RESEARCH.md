@@ -48,3 +48,19 @@ This was also verified on physical hardware running API 27.5.0.
 Physical buttons retain their built-in behavior. Exclusive control capture, control of
 ordinary Chat/Cowork sessions and a reliable universal bridge to private UI interfaces
 are not claimed as completed features. Next steps are listed in [ROADMAP](ROADMAP.md).
+
+## Activity and effort sources
+
+Codex [PermissionRequest](https://learn.chatgpt.com/docs/hooks#permissionrequest) runs
+before the approval decision. An automatic reviewer or hook can resolve it, so this app
+shows CHECK. Tool hooks supply TOOL and the subsequent THINK phase; compact hooks
+supply COMPACT. These labels describe lifecycle events and contain no task text. Claude
+[idle notifications](https://code.claude.com/docs/en/hooks#notification) can fire after
+a completed response; they do not mean a blocking question and are ignored.
+
+Codex [model metadata](https://learn.chatgpt.com/docs/app-server#list-models-modellist)
+defines supported effort levels per model. The display uses an exact-model lookup in the
+bounded local model cache, without starting an app-server or calling an account service.
+A model with five levels has five pixels; a model with six has six. Missing capabilities
+hide the scale. Claude [statusLine](https://code.claude.com/docs/en/statusline) supplies
+a selected effort level without a supported-level list, so no Claude scale is inferred.

@@ -10,7 +10,11 @@
 - Use `request_user_input` for blocking questions when it is supported in the current
   mode. This lifecycle signal lets BUSY Bar show `QUESTION?`. Do not call unavailable
   tools or fabricate questions just to change the display. If unavailable, ask normally;
-  final-message question detection is only a heuristic. Async question tools need their
+  PermissionRequest alone is not proof of a human wait: automatic reviewers/hooks may
+  resolve it. Show CHECK for this event, TOOL for ordinary tools, and ASK only for
+  explicit input tools, user-visible permission notifications or final-question fallback.
+  Final-message detection uses explicit input-request phrases as a heuristic; punctuation
+  alone and idle notifications must not create ASK. Async question tools need their
   own explicit lifecycle adapter before being treated as authoritative signals.
 - Implement behavior with test-driven development. Before claiming completion run:
   `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`, `uv run pyright`.
@@ -30,8 +34,12 @@
   not contact BUSY Bar, OpenAI, Anthropic or any external service, start a daemon,
   install dependencies or read transcripts. Invalid data/configuration must fail open.
 - Persist only normalized lifecycle IDs/state/time/reason and explicitly allowed
-  metadata: persistent session display numbers/counter, model ID, effort, context size/percentage, rate windows/reset timestamps.
+  metadata: persistent session display numbers/counter, model ID, effort, ordered supported
+  effort levels, context size/percentage, rate windows/reset timestamps.
   Validate numbers (including huge integers/NaN/bools), text bounds and timestamps.
+- The daemon may read bounded local `models_cache.json` catalogs beside configured Codex
+  sessions directories for exact-model supported effort levels. Retain only validated
+  model IDs and ordered effort labels, never catalog instructions or descriptions.
 - The daemon may read bounded portions of local Codex rollout files for tracked session
   IDs. Keep raw records only transiently in memory; never copy them into a cache/log.
   Do not open auth.json, .credentials.json, browser cookies or account databases.

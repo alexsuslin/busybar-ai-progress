@@ -65,3 +65,21 @@ creates paths for each user's machine. Source packages use an explicit inclusion
 release archives are inspected and scanned together with the full Git history before upload.
 Automated secret scanning reduces risk but cannot prove that arbitrary text contains no secrets.
 Never use `git add -f` to publish private files. See CONTRIBUTING.md for release checks.
+
+## Activity phases and effort capability metadata
+
+PermissionRequest is an evaluation stage, not proof that a person sees an approval dialog:
+auto-review or another hook can decide it. It produces CHECK, not ASK. Exact blocking question
+tools and permission notifications can produce ASK; explicit input-request phrases in final
+messages remain a best-effort heuristic. Idle notifications and punctuation alone are ignored. No display action approves or rejects a request. THINK denotes the phase
+between reported tools; it can include model or transport latency and does not expose reasoning.
+TOOL and COMPACT come from lifecycle hook types. Only fixed normalized reasons are stored,
+never tool names, arguments, results or reasoning content.
+
+The daemon may read `models_cache.json` beside a configured Codex sessions directory, with a
+2 MiB limit, at most 256 models and eight strictly ordered effort levels per model. Only exact
+model IDs and validated effort labels survive in memory. Catalog instructions, descriptions
+and other fields are not retained. The optional `effort_levels` metadata field contains only
+these labels. Missing catalogs, unknown models, mismatched current effort or malformed data
+hide the scale; none are interpreted as zero. Hooks never read model catalogs or open network
+connections. The cache schema is an internal, best-effort source and may change.

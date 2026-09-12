@@ -3,12 +3,24 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
 from .events import DisplayState, SafeEvent
+
+_ACTIVITY_REASONS = frozenset(
+    {
+        "tool_started",
+        "tool_complete",
+        "permission_check",
+        "user_input",
+        "user_input_complete",
+        "compact_started",
+        "compact_complete",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,18 +95,41 @@ class SessionReducer:
                 event.session_id,
                 SessionRecord.from_event(event, DisplayState.DONE),
             )
-        elif event.reason == "tool_complete" and (
-            previous is None
-            or previous.state not in {DisplayState.QUESTION, DisplayState.CODING}
-            or previous.reason == "final_question"
+        elif (
+            previous is not None
+            and previous.reason == "user_input"
+            and event.reason == "notification"
+        ):
+            # A permission notification does not complete the pending input tool.
+            pass
+        elif event.reason in _ACTIVITY_REASONS and (
+            (previous is None and event.reason != "user_input")
             or (
-                previous.turn_id is not None
-                and event.turn_id is not None
-                and previous.turn_id != event.turn_id
+                previous is not None
+                and (
+                    previous.state not in {DisplayState.QUESTION, DisplayState.CODING}
+                    or previous.reason == "final_question"
+                    or (previous.reason == "user_input" and event.reason != "user_input_complete")
+                    or (
+                        previous.reason != "rollout_started"
+                        and previous.turn_id is not None
+                        and event.turn_id is not None
+                        and previous.turn_id != event.turn_id
+                    )
+                )
             )
         ):
             pass
         else:
+            # Hooks may omit turn_id. Preserve known hook IDs, but never
+            # promote a rollout root ID into a hook continuation ID.
+            if (
+                previous is not None
+                and previous.reason != "rollout_started"
+                and event.turn_id is None
+                and event.reason in _ACTIVITY_REASONS
+            ):
+                event = replace(event, turn_id=previous.turn_id)
             self.records[event.session_id] = SessionRecord.from_event(event)
             dismissed_at = self.dismissed.get(event.session_id)
             if dismissed_at is not None and event_time > datetime.fromisoformat(dismissed_at):

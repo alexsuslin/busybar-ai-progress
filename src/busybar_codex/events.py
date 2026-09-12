@@ -17,6 +17,11 @@ SAFE_REASONS = frozenset(
     {
         "prompt",
         "permission",
+        "permission_check",
+        "tool_started",
+        "user_input_complete",
+        "compact_started",
+        "compact_complete",
         "tool_complete",
         "interrupted",
         "session_end",
@@ -82,15 +87,26 @@ class SafeEvent:
 def _asks_for_input(message: object) -> bool:
     if not isinstance(message, str):
         return False
+    # Final text is only a fallback: punctuation and optional offers do not
+    # establish a human wait. Recognize direct requests at sentence starts.
     normalized = message.strip().casefold()
     phrases = (
         "please choose",
+        "please select",
+        "please confirm",
+        "please provide",
         "which option",
         "reply with",
         "ответь одним",
+        "ответьте одним",
         "выбери вариант",
+        "выберите вариант",
+        "подтверди",
+        "подтвердите",
     )
-    return normalized.endswith("?") or any(phrase in normalized for phrase in phrases)
+    pattern = r"(?:" + "|".join(re.escape(phrase) for phrase in phrases) + r")\b"
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", normalized)
+    return any(re.match(pattern, sentence.lstrip("-* ")) is not None for sentence in sentences)
 
 
 def normalize_hook(
@@ -108,18 +124,27 @@ def normalize_hook(
 
     mapping = {
         "UserPromptSubmit": (DisplayState.CODING, "prompt"),
-        "PermissionRequest": (DisplayState.QUESTION, "permission"),
+        "PermissionRequest": (DisplayState.CODING, "permission_check"),
+        "PreCompact": (DisplayState.CODING, "compact_started"),
+        "PostCompact": (DisplayState.CODING, "compact_complete"),
         "PostToolUse": (DisplayState.CODING, "tool_complete"),
         "Interrupt": (DisplayState.DONE, "interrupted"),
         "SessionEnd": (DisplayState.REMOVE, "session_end"),
         "SessionStart": (DisplayState.REGISTER, "session_start"),
     }
+    question_tools = ("request_user_input", "AskUserQuestion")
     if name == "PreToolUse":
-        if payload.get("tool_name") not in ("request_user_input", "AskUserQuestion"):
+        tool_name = payload.get("tool_name")
+        if not isinstance(tool_name, str) or not valid_identifier(tool_name):
             return None
-        state, reason = DisplayState.QUESTION, "user_input"
+        if tool_name in question_tools:
+            state, reason = DisplayState.QUESTION, "user_input"
+        else:
+            state, reason = DisplayState.CODING, "tool_started"
+    elif name == "PostToolUse" and payload.get("tool_name") in question_tools:
+        state, reason = DisplayState.CODING, "user_input_complete"
     elif name == "Notification":
-        if payload.get("notification_type") not in ("permission_prompt", "idle_prompt"):
+        if payload.get("notification_type") != "permission_prompt":
             return None
         state, reason = DisplayState.QUESTION, "notification"
     elif name == "Stop":

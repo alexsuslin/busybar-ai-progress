@@ -145,3 +145,24 @@ def test_changed_user_statusline_is_preserved_despite_ownership_receipt(tmp_path
     assert not install_hooks("claude", path, tmp_path / "new")
     uninstall_hooks("claude", path, tmp_path / "new")
     assert json.loads(path.read_text())["statusLine"] == custom
+
+
+@pytest.mark.parametrize("client", ["codex", "claude"])
+def test_installer_subscribes_to_all_tools_and_compaction(client: str, tmp_path: Path) -> None:
+    target = tmp_path / "hooks.json"
+    install_hooks(client, target, tmp_path / "state")
+    hooks = json.loads(target.read_text())["hooks"]
+    assert "matcher" not in hooks["PreToolUse"][0]
+    assert hooks["PreCompact"][0]["hooks"][0]["type"] == "command"
+    assert hooks["PostCompact"][0]["hooks"][0]["type"] == "command"
+
+
+def test_claude_notification_matcher_subscribes_only_to_permission_prompt(tmp_path: Path) -> None:
+    import re
+
+    target = tmp_path / "settings.json"
+    install_hooks("claude", target, tmp_path / "state")
+    groups = json.loads(target.read_text())["hooks"]["Notification"]
+    matcher = groups[0]["matcher"]
+    assert re.fullmatch(matcher, "permission_prompt") is not None
+    assert re.fullmatch(matcher, "idle_prompt") is None

@@ -5,9 +5,9 @@ and which session is selected, on your BUSY Bar. It runs on your computer;
 you do not need a separate OpenAI or Anthropic API key.
 
 The **front display** shows the OpenAI/Anthropic icon, model, a short session number
-(`#01`, `#02`), `RUN`, `ASK`, or `DONE` status, reasoning effort, and a context usage
-bar along the bottom. Long model names scroll; the provider icon stays on the left.
-The **rear display** shows the model name, reasoning effort, session, session and
+(`#01`, `#02`), activity/status, a one-pixel-wide effort scale at the right edge,
+and a context usage bar along the bottom. Long model names scroll; the provider icon stays on the left.
+The **rear display** shows the model name, effort scale, session, session and
 question counts, context usage, and available usage limits. Long names scroll.
 Icons come from Simple Icons; see the [licenses](THIRD_PARTY_NOTICES.md).
 
@@ -40,6 +40,10 @@ the timer.
 | Claude Desktop, **Code** tab, Local environment | Through shared hook settings | The same limitation applies: hooks do not guarantee all metadata fields |
 | Claude Code / Codex in WSL, including VS Code Remote WSL | Through the WSL bridge to Windows | Claude: `statusLine`; Codex: reading the WSL sessions directory |
 | Ordinary Claude Desktop / ChatGPT Desktop chats, Cowork, browser and cloud sessions | Not connected by this adapter | No universal source for these data; see the [roadmap](docs/ROADMAP.md) |
+
+Activity phases require the corresponding tool and compaction hooks. The pixel effort
+scale additionally requires a validated supported-level list: Codex uses its local model
+catalog; Claude statusLine currently supplies only the selected effort label.
 
 A terminal inside VS Code and a graphical extension are different ways to run an
 assistant. Not all graphical clients call the terminal `statusLine`.
@@ -87,8 +91,8 @@ You do not need to install Python, Node.js, or Git separately for normal use.
 
 ### 3. Download the project and install its libraries
 
-Open [release v0.1.1](https://github.com/alexsuslin/busybar-ai-progress/releases/tag/v0.1.1)
-and download `busybar-ai-progress-v0.1.1.zip` under **Assets**. Extract the archive
+Open the [latest published release](https://github.com/alexsuslin/busybar-ai-progress/releases/latest)
+and download its `busybar-ai-progress-v*.zip` file under **Assets**. Extract the archive
 to a permanent folder, such as `D:\work\busybar-ai-progress`. Do not run the project
 from inside the archive. Open the extracted folder in File Explorer, type
 `powershell` in the address bar, and press Enter. Enter all the following commands
@@ -229,22 +233,45 @@ file and add the actual Codex directory with `run --codex-sessions-dir`.
 ## Reading the display
 
 On the front display, the provider icon is on the left and the model name is at
-the top. A bottom line such as `#03 RUN HIGH` means session 3, assistant working,
-high reasoning effort. If the client has not provided a model yet, the top line
-shows the status; the icon appears once the model arrives. `N/A` on the bottom
-line means unknown reasoning effort. Codex model and reasoning information
+the top. A bottom line such as `#03 TOOL` means session 3 is executing a tool.
+`#03 THINK` is the phase between tool calls, and `#03 COMPACT` is context compaction. If the client has not provided a model yet, the top line
+shows the status; the icon appears once the model arrives. Unknown reasoning effort or capabilities
+leave the effort scale hidden. Codex model and reasoning information
 usually appear after the first request.
 
 | Label | Meaning |
 | --- | --- |
-| `RUN` on the front / `CODING` on the rear | The assistant is working on the current request |
+| `THINK` on the front / `THINKING` on the rear | Between reported tool calls; this can include model or transport latency |
+| `TOOL` | An ordinary tool call is in progress |
+| `CHECK` | A permission request is being evaluated; a human response is not confirmed |
+| `COMPACT` | Context compaction is in progress |
+| `RUN` on the front / `CODING` on the rear | Working, with no more specific phase available |
 | `ASK` on the front / `QUESTION?` on the rear | A reply or permission is needed; respond in the AI app |
 | `DONE` | The selected session has finished the current request |
-| `REASONING high` | The configured reasoning effort, not the text of internal thoughts |
+| Vertical pixel scale | Configured effort among the current model's supported levels, not internal thoughts |
 | `CTX 25% / 200,000` | The latest known context occupies a quarter of a 200,000-token window |
 | `USED 5h 23% 7d 41%` | 23% of the short usage limit and 41% of the weekly limit have been used |
 | `N/A` | The client has not provided usable data; it does not mean zero |
 | `SESSIONS 3 QUESTIONS 1` | One of three known sessions is waiting for your reply |
+
+The effort scale is one pixel wide on each screen. One pixel represents one supported
+level, ordered from lowest at the bottom to highest at the top. Active levels use the
+current status color; higher levels are gray. For `low, medium, high, xhigh, ultra`,
+`high` fills three pixels and leaves two gray. A six-level catalog shows six pixels.
+Codex capabilities come from the exact model entry in local `models_cache.json` beside
+its sessions directory. The daemon reads it without starting an AI client or making
+provider requests. Unknown models or missing capabilities hide the scale; they are not
+shown as zero. Claude statusLine does not currently supply a supported-level list, so
+its scale stays hidden unless validated capabilities are available. Numeric metadata
+and the effort label remain available through `status`.
+
+Ordinary tools do not set ASK. PermissionRequest is emitted before the final approval
+decision; it can be resolved automatically, so it shows CHECK. ASK is used for blocking
+question tools or user-visible permission notifications. Idle notifications and a trailing
+question mark alone do not trigger ASK. Explicit input-request phrases in the final message
+remain a best-effort fallback. THINK is a lifecycle phase, not inspection of internal
+reasoning. Hook coverage varies by client; the table above still applies. Reinstall
+hooks with `install-hooks` and restart the daemon to enable all tool and compaction events.
 
 The bar shows **context usage**, not task completion progress. The total tokens
 used throughout a session are not treated as current window occupancy.
@@ -274,7 +301,7 @@ do not override newer hooks, and the current turn's final question is preserved.
 The local file format is a best-effort source, not a stable public API.
 Without usable markers, with `--no-telemetry`, or with Claude, a missed Stop can
 still leave an old status until the next event or expiry. A late PostToolUse after
-a final question or completion, or from another known turn ID, does not restore `RUN`.
+a final question or completion, or from another known turn ID, does not resume work.
 
 Usage limits appear only when the client provides them. For Codex, the window
 duration comes from the event: it may be 1h, 5h, 7d, and so on. Claude uses

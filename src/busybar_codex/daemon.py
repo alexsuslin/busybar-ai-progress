@@ -10,7 +10,7 @@ from threading import Event
 from typing import Protocol
 
 from .busybar import DisplayBusyError, DisplayUnavailableError
-from .dashboard import Dashboard, DisplayFrame
+from .dashboard import Dashboard, DisplayFrame, activity_for
 from .events import DisplayState, SafeEvent
 from .queue import EventQueue
 from .state import SessionReducer
@@ -140,6 +140,7 @@ class StatusDaemon:
             sum(r.state is DisplayState.QUESTION for r in self.reducer.visible_records.values()),
             data,
             self.dashboard.hidden or record is None,
+            activity_for(record),
         )
         if frame.hidden:
             frame = DisplayFrame(DisplayState.DONE, None, 0, 0, Telemetry(), hidden=True)

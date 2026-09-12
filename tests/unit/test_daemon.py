@@ -347,3 +347,56 @@ def test_rollout_completion_preserves_final_question_but_next_turn_finishes(tmp_
     clock.advance(1)
     complete = SafeEvent("s1", "t2", DisplayState.DONE, clock().isoformat(), "rollout_complete")
     assert daemon.step() is DisplayState.DONE
+
+
+def test_prompt_frame_shows_thinking_phase_without_changing_lifecycle(tmp_path: Path) -> None:
+    from busylib import types
+
+    from busybar_codex.rendering import frame_elements
+
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+    front = next(item for item in frame_elements(frames[-1]) if item.id == "front-session")
+    assert isinstance(front, types.TextElement) and front.text == "#01 THINK"
+    assert frames[-1].state is DisplayState.CODING
+    assert frames[-1].question_count == 0
+
+
+def test_normalized_tools_render_activity_and_preserve_explicit_wait(tmp_path: Path) -> None:
+    from busylib import types
+
+    from busybar_codex.events import normalize_hook
+    from busybar_codex.rendering import frame_elements
+
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    sequence = [
+        ("UserPromptSubmit", None, "THINK"),
+        ("PreToolUse", "Bash", "TOOL"),
+        ("PermissionRequest", "Bash", "CHECK"),
+        ("PostToolUse", "Bash", "THINK"),
+        ("PreCompact", None, "COMPACT"),
+        ("PostCompact", None, "THINK"),
+        ("PreToolUse", "request_user_input", "ASK"),
+        ("PostToolUse", "Bash", "ASK"),
+        ("PostToolUse", "request_user_input", "THINK"),
+        ("Stop", None, "DONE"),
+    ]
+    for hook, tool, expected in sequence:
+        event = normalize_hook(
+            {"hook_event_name": hook, "session_id": "s1", "turn_id": "t1", "tool_name": tool},
+            clock(),
+        )
+        assert event is not None
+        queue.put(event)
+        daemon.step()
+        front = next(item for item in frame_elements(frames[-1]) if item.id == "front-session")
+        assert isinstance(front, types.TextElement) and front.text == f"#01 {expected}"
+        assert frames[-1].question_count == (1 if expected == "ASK" else 0)
+        clock.advance(1)

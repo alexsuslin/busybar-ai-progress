@@ -4,7 +4,7 @@ import json
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -42,6 +42,11 @@ class Telemetry:
     context_percent: float | None = None
     context_size: int | None = None
     limits: tuple[RateWindow, ...] = ()
+    effort_levels: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        levels = normalize_effort_levels(self.effort_levels)
+        object.__setattr__(self, "effort_levels", levels if self.effort in levels else ())
 
     @property
     def provider(self) -> str | None:
@@ -75,26 +80,92 @@ class Telemetry:
             number(raw.get("context_percent"), 100),
             int(size) if size else None,
             tuple(windows),
+            normalize_effort_levels(raw.get("effort_levels")),
         )
 
 
+# Ordering validates source metadata; it never supplies a model's supported range.
+_EFFORT_ORDER = ("none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra")
+
+
 def effort_label(value: object) -> str | None:
-    return (
-        value
-        if isinstance(value, str)
-        and value
-        in {
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high",
-            "xhigh",
-            "max",
-            "ultra",
-        }
-        else None
-    )
+    return value if isinstance(value, str) and value in _EFFORT_ORDER else None
+
+
+def normalize_effort_levels(value: object) -> tuple[str, ...]:
+    """Accept only complete, strictly ordered capabilities from a source."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    items = cast(list[object] | tuple[object, ...], value)
+    if not 1 <= len(items) <= 8:
+        return ()
+    result: list[str] = []
+    previous = -1
+    for item in items:
+        effort = effort_label(item)
+        if effort is None:
+            return ()
+        index = _EFFORT_ORDER.index(effort)
+        if index <= previous:
+            return ()
+        result.append(effort)
+        previous = index
+    return tuple(result)
+
+
+class CodexModelCatalog:
+    """Bounded best-effort cache of normalized local model capabilities only."""
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._stamp: tuple[int, int, int, int] | None = None
+        self._models: dict[str, tuple[str, ...]] = {}
+
+    def read(self, model: str | None, effort: str | None) -> tuple[str, ...]:
+        if model is None or effort is None:
+            return ()
+        try:
+            stat = self.path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
+            if stamp != self._stamp:
+                self._models = {}
+                self._stamp = None
+                if not 0 < stat.st_size <= 2 * 1024 * 1024 or not self.path.is_file():
+                    return ()
+                with self.path.open("rb") as stream:
+                    content = stream.read(2 * 1024 * 1024)
+                # Concurrent replacement/growth must not yield a partial catalog.
+                after = self.path.stat()
+                if stamp != (after.st_mtime_ns, after.st_ctime_ns, after.st_size, after.st_ino):
+                    return ()
+                self._models = self._normalize(json.loads(content))
+                self._stamp = stamp
+        except (OSError, ValueError, UnicodeError, RecursionError):
+            self._models = {}
+            self._stamp = None
+            return ()
+        levels = self._models.get(model, ())
+        return levels if effort in levels else ()
+
+    @staticmethod
+    def _normalize(value: object) -> dict[str, tuple[str, ...]]:
+        models = object_map(value).get("models")
+        if not isinstance(models, list) or len(cast(list[object], models)) > 256:
+            return {}
+        result: dict[str, tuple[str, ...]] = {}
+        for item in cast(list[object], models):
+            raw = object_map(item)
+            slug = label(raw.get("slug"))
+            if slug is None or slug in result:
+                return {}
+            levels = raw.get("supported_reasoning_levels")
+            if not isinstance(levels, list) or len(cast(list[object], levels)) > 8:
+                result[slug] = ()
+                continue
+            result[slug] = normalize_effort_levels(
+                [object_map(level).get("effort") for level in cast(list[object], levels)]
+            )
+        return result
 
 
 def rate_window(
@@ -132,13 +203,19 @@ class CodexTelemetry:
     most 2 MiB per file. Missing/changed rollout schemas produce unknown fields.
     """
 
-    def __init__(self, directory: Path) -> None:
+    def __init__(self, directory: Path, *, catalog_path: Path | None = None) -> None:
         self.directory = directory
+        self._catalog = CodexModelCatalog(
+            catalog_path if catalog_path is not None else directory.parent / "models_cache.json"
+        )
         self._paths: dict[str, Path] = {}
-        self._cache: dict[str, tuple[int, int, Telemetry, tuple[SafeEvent, ...]]] = {}
+        self._cache: dict[
+            str, tuple[tuple[int, int, int, int], Telemetry, tuple[SafeEvent, ...]]
+        ] = {}
 
     def read(self, session_id: str) -> Telemetry:
-        return self._snapshot(session_id)[0]
+        data = self._snapshot(session_id)[0]
+        return replace(data, effort_levels=self._catalog.read(data.model, data.effort))
 
     def read_lifecycle(self, session_id: str) -> tuple[SafeEvent, ...]:
         return self._snapshot(session_id)[1]
@@ -159,11 +236,12 @@ class CodexTelemetry:
                     return Telemetry(), ()
                 self._paths[session_id] = path
             stat = path.stat()
+            stamp = (stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino)
             old = self._cache.get(session_id)
-            if old is not None and old[:2] == (stat.st_mtime_ns, stat.st_size):
-                return old[2], old[3]
+            if old is not None and old[0] == stamp:
+                return old[1], old[2]
             data, lifecycle = self._read_file(path, stat.st_size, session_id)
-            self._cache[session_id] = (stat.st_mtime_ns, stat.st_size, data, lifecycle)
+            self._cache[session_id] = (stamp, data, lifecycle)
             return data, lifecycle
         except (OSError, ValueError):
             return Telemetry(), ()

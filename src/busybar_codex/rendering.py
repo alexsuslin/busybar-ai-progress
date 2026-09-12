@@ -4,7 +4,7 @@ from importlib.resources import files
 
 from busylib import types
 
-from .dashboard import DisplayFrame
+from .dashboard import DisplayFrame, WorkActivity
 from .events import DisplayState
 
 
@@ -26,6 +26,11 @@ def frame_elements(frame: DisplayFrame) -> list[types.DisplayElement]:
         DisplayState.QUESTION: "QUESTION?",
         DisplayState.DONE: "DONE",
     }
+    activity = frame.activity if frame.state is DisplayState.CODING else None
+    if activity is not None:
+        labels[DisplayState.CODING] = (
+            "THINKING" if activity is WorkActivity.THINK else activity.value
+        )
     front, back = types.DisplayName.FRONT, types.DisplayName.BACK
     elements: list[types.DisplayElement] = []
 
@@ -55,7 +60,13 @@ def frame_elements(frame: DisplayFrame) -> list[types.DisplayElement]:
         )
 
     def rectangle(
-        key: str, x: int, y: int, width: int, height: int, fill: str, display: types.DisplayName
+        key: str,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        fill: str,
+        display: types.DisplayName,
     ) -> None:
         elements.append(
             types.RectangleElement(
@@ -85,18 +96,36 @@ def frame_elements(frame: DisplayFrame) -> list[types.DisplayElement]:
                 opacity=100 if data.provider else 0,
             )
         )
-    text("front-state", data.model.upper() if data.model else labels[frame.state], 14, 0, 58, front)
+    text("front-state", data.model.upper() if data.model else labels[frame.state], 14, 0, 56, front)
     short_state = {
         DisplayState.CODING: "RUN",
         DisplayState.QUESTION: "ASK",
         DisplayState.DONE: "DONE",
     }
+    if activity is not None:
+        short_state[DisplayState.CODING] = activity.value
     detail = (
-        f"{frame.session_tag} {short_state[frame.state]} {(data.effort or 'N/A').upper()}"
-        if frame.session_tag
-        else "NO SESSION"
+        f"{frame.session_tag} {short_state[frame.state]}" if frame.session_tag else "NO SESSION"
     )
-    text("front-session", detail, 14, 8, 58, front, small=True)
+    text("front-session", detail, 14, 8, 56, front, small=True)
+    levels = data.effort_levels
+    active = (
+        levels.index(data.effort) + 1 if data.effort is not None and data.effort in levels else 0
+    )
+    # Stable pixel IDs hide unused levels when capabilities disappear or shrink.
+    for display, x in ((front, 71), (back, 159)):
+        for index in range(8):
+            rectangle(
+                f"{display}-effort-{index}",
+                x,
+                13 - index,
+                1,
+                1,
+                (color if index < active else "#444444")
+                if index < len(levels) and active
+                else "#000000",
+                display,
+            )
     rectangle("front-context-track", 0, 15, 72, 1, "#242424", front)
     context = data.context_percent or 0
     rectangle(
@@ -110,7 +139,7 @@ def frame_elements(frame: DisplayFrame) -> list[types.DisplayElement]:
     )
 
     text("back-model", data.model or "MODEL N/A", 15, 0, 129)
-    text("back-effort", f"REASONING {data.effort or 'N/A'}", 0, 13, 144)
+    text("back-effort", "", 0, 13, 144)
     text("back-state", f"{labels[frame.state]}  {frame.session_tag or '-'}", 0, 25, 144)
     text(
         "back-sessions",
