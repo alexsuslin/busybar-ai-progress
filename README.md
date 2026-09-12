@@ -91,6 +91,9 @@ synthetic tests. Motion and overview use the same local BUSY Bar display API for
 all supported clients; they do not add AI-client integrations. End-to-end GUI-client
 validation remains separate from synthetic and device-level display checks.
 
+The Windows tray runs the same daemon for every supported row above; it adds no
+AI-client or ordinary-chat integration. Startup is Windows-only.
+
 A terminal inside VS Code and a graphical extension are different ways to run an
 assistant. Not all graphical clients call the terminal `statusLine`.
 Hook support in Claude VS Code and local Code is documented in the official
@@ -242,8 +245,71 @@ and run:
 ```
 
 If Windows policy blocks `.ps1` files, use the regular `uv run` command above;
-you do not need to change system policy. Automatic startup at Windows sign-in
-is not installed yet.
+you do not need to change system policy. For a launch without a console and optional Windows sign-in startup, use the tray mode below.
+
+## Windows tray and automatic startup
+
+Tray mode is available in the development version after 0.1.2. Install/update the
+libraries with `uv sync` first. Stop an existing console daemon with **Ctrl+C**,
+then run this from the project folder:
+
+```powershell
+uv run busybar-codex tray --env-file .env
+```
+
+PowerShell returns immediately. You can close it; the app runs through `pythonw.exe`
+with an icon in the Windows notification area. If you cannot see it, open the
+hidden-icons arrow next to the clock. Right-click **BUSY Bar AI Progress**.
+
+| Menu action | What it does |
+| --- | --- |
+| Start / Stop | Start or gracefully stop this tray's display daemon |
+| Restart | Stop, clear our display, and start again after cleanup finishes |
+| Show display / Hide display | Show or hide this app's widget without stopping AI tasks |
+| Start with Windows | Enable or disable startup for the current Windows user |
+| Exit | Stop this tray's daemon and remove its tray icon |
+
+The icon is blue while the daemon runs, gray when stopped, amber while stopping
+or when another daemon owns the state directory, and pink after a worker error.
+**Running** means the daemon is running; it does not guarantee a live device
+connection. Use `uv run --env-file .env busybar-codex doctor` to check the device.
+An existing console daemon is not taken over; stop it, then choose **Start**.
+Only one tray and one daemon can own the same state directory.
+
+**Start with Windows** is off until you select it. No administrator rights are
+needed. Clear the same checkbox to disable it. **Exit** leaves the startup
+preference unchanged, so an enabled app will return at the next sign-in. Windows
+may delay login startup; if Windows Settings separately disabled the entry, enable
+it there as well. A conflicting startup entry is preserved and reported.
+
+Keep the project folder and its `.venv` in a permanent location. Disable startup
+before moving/removing them; re-enable it from the new installation afterward.
+Very long installation/profile paths may exceed Windows' 260-character Run-command
+limit: manual tray launch still works, but startup asks for a shorter path.
+
+Put persistent connection settings in the explicit `--env-file` or a TOML file:
+
+```powershell
+uv run busybar-codex --config C:/path/to/config.toml tray
+```
+
+Unlike `uv --env-file`, the `tray --env-file` option remembers the file's **path**
+for login startup. Values are read at launch, never copied into the startup entry.
+The tray accepts supported `BUSYBAR_CODEX_*` settings and `CODEX_HOME` from the
+file, without `${...}` expansion; inherited environment settings take precedence.
+Unrelated entries such as `PATH` and `PYTHONPATH` in this file are ignored. Temporary
+PowerShell settings are not saved for the next sign-in. After editing settings,
+use **Exit** and launch the tray again; **Restart** reuses the current settings.
+
+A GUI entry point is also installed at `.venv/Scripts/busybar-codex-tray.exe`.
+A Windows shortcut can target it with `--env-file` and an absolute file path;
+set the shortcut's **Start in** folder to the project folder.
+The tray stays in Windows for WSL clients; AI-client compatibility is unchanged.
+Linux retains the console daemon and does not install the Windows tray dependency.
+
+The native Windows menu was exercised with a synthetic worker and an in-memory
+startup store. A complete Windows sign-out/sign-in and every AI-client scenario
+have not been tested.
 
 ## WSL and VS Code Remote WSL
 
@@ -457,7 +523,8 @@ Stop `run`, update the project files, and run `uv sync` again. Repeat
 `install-hooks` for the environments you use, especially if the folder or Python
 path has changed.
 
-Before deleting the project folder, remove the integrations:
+Before deleting the project folder, turn off **Start with Windows**, use **Exit**,
+and remove the integrations:
 
 ```powershell
 uv run busybar-codex uninstall-hooks --client codex

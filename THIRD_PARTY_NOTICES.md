@@ -14,3 +14,13 @@ The integration design was compared with the projects listed in
 vendored. The adopted ideas are implemented here against the official interfaces
 and tested independently. Existing busylib and other dependencies retain their
 own licenses.
+
+
+## Windows tray dependency
+
+The Windows tray imports unmodified [pystray 0.19.5](https://github.com/moses-palmer/pystray/tree/v0.19.5)
+as a separately installed Python dependency. It is licensed under LGPL-3.0-or-later;
+its distribution includes `COPYING` and `COPYING.LGPL`. See the upstream
+[license](https://github.com/moses-palmer/pystray/blob/v0.19.5/COPYING.LGPL).
+The application does not vendor or modify pystray. The small tray bar image is
+original Pillow drawing code, not artwork from a third-party app.

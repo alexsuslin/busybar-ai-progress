@@ -12,6 +12,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from threading import Event
 from typing import NoReturn, Protocol, TextIO, cast
 from urllib.parse import urlsplit
 
@@ -62,6 +63,10 @@ def _parser() -> Parser:
     run_parser.add_argument("--no-animation", action="store_true", help="disable status motion")
     run_parser.add_argument("--no-telemetry", action="store_true")
     run_parser.add_argument("--codex-sessions-dir", type=Path, action="append")
+    tray_parser = commands.add_parser("tray", help="launch the Windows notification-area app")
+    tray_parser.add_argument(
+        "--env-file", type=Path, help="persistent app settings for tray/login startup"
+    )
     commands.add_parser("claude-statusline")
     for command in ("install-hooks", "uninstall-hooks"):
         installer = commands.add_parser(command)
@@ -105,7 +110,7 @@ def _resolved_config(
     return Config.load(path=cast(Path | None, args.config), environ=values)
 
 
-def _configure_logging(config: Config) -> None:
+def configure_logging(config: Config) -> None:
     config.log_dir.mkdir(parents=True, exist_ok=True)
     package_logger = logging.getLogger("busybar_codex")
     package_logger.setLevel(config.log_level)
@@ -339,7 +344,14 @@ def telemetry_source(
     return read
 
 
-def _run(config: Config, display_factory: DisplayFactory, args: argparse.Namespace) -> int:
+def run_daemon(
+    config: Config,
+    display_factory: DisplayFactory,
+    args: argparse.Namespace,
+    *,
+    stop_event: Event | None = None,
+    on_ready: Callable[[], None] | None = None,
+) -> int:
     with InstanceLock(config.state_dir / "daemon.lock"):
         reducer = _load_reducer(config)
         display = cast(StateDisplay, display_factory(config))
@@ -363,10 +375,15 @@ def _run(config: Config, display_factory: DisplayFactory, args: argparse.Namespa
             lifecycle=None if args.no_telemetry else lifecycle_source(config, sources=sources),
             telemetry=(None if args.no_telemetry else telemetry_source(config, sources=sources)),
         )
-        if not args.no_input:
-            inputs.start()
         try:
-            daemon.run()
+            if not args.no_input:
+                inputs.start()
+            if on_ready is not None:
+                on_ready()
+            if stop_event is None:
+                daemon.run()
+            else:
+                daemon.run(stop_event)
         except KeyboardInterrupt:
             pass
         finally:
@@ -406,8 +423,25 @@ def main(
                 )
             except (OSError, ValueError):
                 return 0
+        if command == "tray":
+            from .tray_launch import LaunchProfile, launch_tray
+
+            if args.address is not None or args.priority is not None:
+                error_stream.write("Use an env/TOML file for tray address and priority settings.\n")
+                return 2
+            launch_tray(
+                LaunchProfile(
+                    Path.cwd(),
+                    cast(Path, args.config).resolve() if args.config else None,
+                    cast(Path, args.env_file).resolve() if args.env_file else None,
+                    cast(Path, args.state_dir).resolve() if args.state_dir else None,
+                ),
+                environ,
+            )
+            output_stream.write("tray: launch requested; use the notification-area icon\n")
+            return 0
         config = _resolved_config(args, environ)
-        _configure_logging(config)
+        configure_logging(config)
         if command in {"install-hooks", "uninstall-hooks"}:
             client_name = cast(str, args.client)
             variable = "CODEX_HOME" if client_name == "codex" else "CLAUDE_CONFIG_DIR"
@@ -460,7 +494,7 @@ def main(
             render_assets(cast(Path, args.output))
             return 0
         if command == "run":
-            return _run(config, factory, args)
+            return run_daemon(config, factory, args)
     except UsageError:
         error_stream.write("invalid arguments\n")
         return 2
@@ -470,7 +504,8 @@ def main(
     except AlreadyRunningError:
         error_stream.write(
             "BUSY Bar is already running for this state directory. "
-            "Stop that instance (Ctrl+C in its terminal) before starting another.\n"
+            "Stop that instance (Exit in its tray menu or Ctrl+C in its terminal) "
+            "before starting another.\n"
         )
         return 1
     except OSError as error:

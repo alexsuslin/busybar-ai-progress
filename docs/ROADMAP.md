@@ -12,9 +12,9 @@ features use existing HTTP and WebSocket interfaces without firmware changes.
 
 ## Priority 1 — easier everyday use
 
-1. **Windows tray and automatic startup.** Actions for Start, Hide, Restart and
-   Check connection, plus device selection and a log of safe error codes.
-   Add a signed installer and a supported way to remove automatic startup.
+1. **Windows tray and automatic startup.** Implemented after 0.1.2: windowless
+   launch, Start/Stop/Restart, Show/Hide, Exit and removable per-user login startup.
+   Next: in-menu device diagnostics/selection and a signed installer.
 2. **Setup wizard.** Detect installed CLI/VS Code/WSL clients and show separate
    results: hook installed, trusted by the client, event received, metadata received.
    The installer currently adds entries but cannot establish trust on the user's behalf.

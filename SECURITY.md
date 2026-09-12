@@ -115,3 +115,34 @@ opening an old completed session does not replay it. START/encoder behavior and
 firmware ownership remain unchanged. Disabling status motion changes presentation
 only. The implementation uses existing rectangle/text upserts, with stable element
 IDs and explicit hiding, not native undocumented animation formats or new assets.
+
+
+## Windows tray and login startup
+
+The tray owns one cooperative daemon worker and a separate `tray.lock` for its
+state directory. Controls remain disabled until the daemon has acquired its lock.
+Stop/Restart/Exit affect only this worker, never an unrelated daemon or AI task.
+No hook imports GUI libraries or starts the tray. Device I/O and scoped shutdown
+cleanup stay in the existing daemon path.
+
+A bounded `tray-<state-hash>.json` in the app's configuration directory stores only
+absolute `working_directory`, `config_file`, `env_file`, and `state_dir` paths.
+Profiles for distinct state directories cannot overwrite each other. Profile reads
+are limited to 8 KiB; explicit environment-file reads to 64 KiB. File values are
+filtered to supported app settings plus `CODEX_HOME`, without interpolation. Tokens
+remain transient process configuration and in the user's original private file;
+no environment dumps, auth files, transcripts or raw events enter the profile.
+
+The Windows child uses `pythonw.exe -I` with closed standard streams, no shell and
+no console. Isolated Python mode prevents import shadowing by the launch directory
+or `PYTHONPATH`. Login startup is opt-in and owns only the `BusyBarAIProgress` string
+value under `HKCU/Software/Microsoft/Windows/CurrentVersion/Run`. Its command contains
+only the executable/module/profile path; it contains no address, access code or AI
+metadata. Deletion requires an exact command match; conflicting values are left
+intact. Other startup values, Windows startup approval settings and AI settings are
+not modified. Unchecking startup removes the owned value; Exit alone preserves it.
+
+Keep the installation and selected config files trusted and in place. Startup is
+per Windows user and can be delayed/disabled by Windows. Paths beyond the documented
+Run-command limit disable the optional startup action, not manual tray operation.
+Native UI and worker failures log fixed reason text and exception class names only.

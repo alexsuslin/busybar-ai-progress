@@ -1,6 +1,6 @@
 [project]
 name = "busybar-codex-status"
-version = "0.1.2"
+version = "0.1.3.dev1"
 description = "Show local Claude Code and Codex session status on a BUSY Bar"
 readme = "README.md"
 license = "MIT"
@@ -9,10 +9,15 @@ dependencies = [
   "busylib>=2.1,<3",
   "pillow>=11,<13",
   "platformdirs>=4.3,<5",
+  "pystray>=0.19.5,<0.20 ; sys_platform == 'win32'",
+  "python-dotenv>=1.2,<2",
 ]
 
 [project.scripts]
 busybar-codex = "busybar_codex.cli:main"
+
+[project.gui-scripts]
+busybar-codex-tray = "busybar_codex.tray:main"
 
 [project.urls]
 Homepage = "https://github.com/alexsuslin/busybar-ai-progress"
