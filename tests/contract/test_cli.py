@@ -114,6 +114,7 @@ def test_doctor_reports_redacted_address_and_hook_presence(
     monkeypatch.chdir(tmp_path)
     values = environment(tmp_path)
     values["BUSYBAR_CODEX_ADDRESS"] = "http://user:private@127.0.0.1:8080"
+    values["CODEX_HOME"] = str(tmp_path / "global-codex")
     stdout = io.StringIO()
 
     result = main(
@@ -128,7 +129,9 @@ def test_doctor_reports_redacted_address_and_hook_presence(
     report = stdout.getvalue()
     assert result == 0
     assert "address: http://127.0.0.1:8080" in report
-    assert "hooks: ok" in report
+    assert "hooks (project): found" in report
+    assert "hooks (global Codex): missing" in report
+    assert "install-hooks --client codex" in report
     assert "private" not in report
 
 
@@ -149,3 +152,23 @@ def test_render_assets_writes_three_png_files(tmp_path: Path) -> None:
         "done.png",
         "question.png",
     ]
+
+
+@pytest.mark.parametrize("command", ["hook", "claude-statusline"])
+def test_deeply_nested_hook_input_fails_open(tmp_path: Path, command: str) -> None:
+    payload = '{"session_id":"s1","tool_input":' + "[" * 100000 + "0" + "]" * 100000 + "}"
+    stdout = io.StringIO()
+    stderr = io.StringIO()
+
+    result = main(
+        [command],
+        environ=environment(tmp_path),
+        stdin=io.StringIO(payload),
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+    assert result == 0
+    assert stdout.getvalue() == ""
+    assert stderr.getvalue() == ""
+    assert not (tmp_path / "state").exists()

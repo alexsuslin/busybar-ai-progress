@@ -1,5 +1,9 @@
 # BUSY Bar Codex Status — Design
 
+> Historical v0.1 design. The authorized session-dashboard extension in
+> `../plans/2026-09-11-session-dashboard.md` supersedes the static-only display and
+> no-rollout-metadata scope. Current behavior and privacy rules are in README and AGENTS.
+
 ## Summary
 
 Build a Windows-first Python application that reflects the aggregate state of local Codex sessions on a BUSY Bar connected over USB. The front 72×16 RGB display shows one of three bundled images:

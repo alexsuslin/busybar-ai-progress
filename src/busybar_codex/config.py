@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import tomllib
 from collections.abc import Mapping
@@ -98,9 +99,9 @@ class Config:
             raise ValueError("priority must be between 1 and 100")
         if stale_after_seconds <= 0:
             raise ValueError("stale_after_seconds must be positive")
-        if poll_interval_seconds <= 0:
+        if not math.isfinite(poll_interval_seconds) or poll_interval_seconds <= 0:
             raise ValueError("poll_interval_seconds must be positive")
-        if request_timeout_seconds <= 0:
+        if not math.isfinite(request_timeout_seconds) or request_timeout_seconds <= 0:
             raise ValueError("request_timeout_seconds must be positive")
         if not application_name:
             raise ValueError("application_name must not be empty")

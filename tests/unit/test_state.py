@@ -12,7 +12,7 @@ def event(
     state: DisplayState,
     *,
     age_seconds: int = 0,
-    reason: str = "test",
+    reason: str = "prompt",
     turn_id: str | None = None,
 ) -> SafeEvent:
     return SafeEvent(
@@ -112,3 +112,113 @@ def test_missing_snapshot_loads_empty(tmp_path: Path) -> None:
     restored = SessionReducer.load(tmp_path / "missing.json", stale_after_seconds=86_400)
 
     assert restored.records == {}
+
+
+def test_session_numbers_survive_updates_removal_and_restart(tmp_path: Path) -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("z", DisplayState.CODING))
+    reducer.apply(event("a", DisplayState.QUESTION))
+    assert reducer.session_label("z") == "#01"
+    assert reducer.session_label("a") == "#02"
+    reducer.apply(event("z", DisplayState.DONE))
+    assert reducer.session_label("z") == "#01"
+    reducer.apply(event("z", DisplayState.REMOVE))
+    snapshot = tmp_path / "state.json"
+    reducer.save(snapshot)
+    restored = SessionReducer.load(snapshot, 86400)
+    assert restored.session_label("a") == "#02"
+    restored.apply(event("new", DisplayState.CODING))
+    assert restored.session_label("new") == "#03"
+
+
+def test_old_snapshot_receives_stable_readable_numbers(tmp_path: Path) -> None:
+    import json
+    from dataclasses import asdict
+
+    snapshot = tmp_path / "state.json"
+    snapshot.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "records": [
+                    asdict(event("a", DisplayState.DONE)),
+                    asdict(event("b", DisplayState.CODING)),
+                ],
+            }
+        )
+    )
+    restored = SessionReducer.load(snapshot, 86400)
+    assert restored.session_label("a") == "#01"
+    assert restored.session_label("b") == "#02"
+
+
+def test_invalid_number_snapshot_is_rejected(tmp_path: Path) -> None:
+    import json
+
+    import pytest
+
+    snapshot = tmp_path / "state.json"
+    reducer = SessionReducer(86400)
+    reducer.apply(event("a", DisplayState.DONE))
+    reducer.apply(event("b", DisplayState.DONE))
+    reducer.save(snapshot)
+    original = json.loads(snapshot.read_text())
+    for numbers, counter in [
+        ({"a": True, "b": 2}, 3),
+        ({"a": 1, "b": 1}, 3),
+        ({"a": 1, "b": 2}, 2),
+        ({"a": 1}, 3),
+    ]:
+        snapshot.write_text(
+            json.dumps({**original, "session_numbers": numbers, "next_session_number": counter})
+        )
+        with pytest.raises(ValueError):
+            SessionReducer.load(snapshot, 86400)
+
+
+def test_number_counter_survives_empty_snapshot(tmp_path: Path) -> None:
+    reducer = SessionReducer(60)
+    reducer.apply(event("old", DisplayState.CODING, age_seconds=61))
+    reducer.aggregate(NOW)
+    snapshot = tmp_path / "state.json"
+    reducer.save(snapshot)
+    restored = SessionReducer.load(snapshot, 60)
+    restored.apply(event("new", DisplayState.CODING))
+    assert restored.session_label("new") == "#02"
+
+
+def test_late_tool_completion_does_not_resume_final_question() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="final_question", age_seconds=1))
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_complete"))
+    assert reducer.records["s1"].state is DisplayState.QUESTION
+
+
+def test_other_turn_tool_completion_does_not_resume_question() -> None:
+    reducer = SessionReducer(86400)
+    reducer.apply(event("s1", DisplayState.QUESTION, reason="user_input", turn_id="new"))
+    reducer.apply(event("s1", DisplayState.CODING, reason="tool_complete", turn_id="old"))
+    assert reducer.records["s1"].state is DisplayState.QUESTION
+
+
+def test_invalid_dismissal_snapshot_is_rejected(tmp_path: Path) -> None:
+    import json
+
+    import pytest
+
+    snapshot = tmp_path / "state.json"
+    reducer = SessionReducer(86400)
+    reducer.apply(event("a", DisplayState.DONE))
+    reducer.save(snapshot)
+    original = json.loads(snapshot.read_text())
+    invalid_dismissals: list[object] = [
+        [],
+        {"missing": NOW.isoformat()},
+        {"a": True},
+        {"a": "2026-09-11T12:00:00"},
+        {"a": "invalid"},
+    ]
+    for dismissed in invalid_dismissals:
+        snapshot.write_text(json.dumps({**original, "dismissed": dismissed}))
+        with pytest.raises(ValueError):
+            SessionReducer.load(snapshot, 86400)

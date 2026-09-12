@@ -45,6 +45,9 @@ def test_drain_quarantines_malformed_committed_file(tmp_path: Path) -> None:
     assert queue.drain() == []
     assert not malformed.exists()
     assert len(list((tmp_path / "rejected").glob("*.json"))) == 1
+    assert (
+        "private malformed payload" not in next((tmp_path / "rejected").glob("*.json")).read_text()
+    )
 
 
 def test_drain_preserves_filename_order(tmp_path: Path) -> None:

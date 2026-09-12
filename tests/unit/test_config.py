@@ -63,3 +63,9 @@ def test_environment_can_isolate_local_data_directories(tmp_path: Path) -> None:
     assert config.state_dir == tmp_path / "state"
     assert config.cache_dir == tmp_path / "cache"
     assert config.log_dir == tmp_path / "logs"
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_nonfinite_timing_is_rejected(tmp_path: Path, value: str) -> None:
+    with pytest.raises(ValueError):
+        Config.load(path=tmp_path / "none", environ={"BUSYBAR_CODEX_POLL_INTERVAL_SECONDS": value})

@@ -14,7 +14,9 @@ from busylib import BusyBar, converter, exceptions, types
 from . import __version__
 from .assets import bundled_asset
 from .config import Config
+from .dashboard import DisplayFrame
 from .events import DisplayState
+from .rendering import frame_elements, icon_png
 
 AssetProvider = Callable[[DisplayState], Path]
 RENDERABLE_STATES = (DisplayState.CODING, DisplayState.QUESTION, DisplayState.DONE)
@@ -34,6 +36,10 @@ class BusyBarClient(Protocol):
     def assets_upload(self, application_name: str, filename: str, data: bytes) -> object: ...
 
     def display_draw(self, display_data: types.DisplayElements) -> object: ...
+
+
+class ClearClient(Protocol):
+    def display_clear(self, *, application_name: str) -> object: ...
 
 
 def _redacted_address(value: str) -> str:
@@ -69,6 +75,7 @@ class BusyBarDisplay:
         self.device_key = _redacted_address(device_key)
         self.asset_provider = asset_provider
         self._asset_names: dict[DisplayState, str] = {}
+        self._icons_uploaded = False
 
     @classmethod
     def from_config(cls, config: Config) -> BusyBarDisplay:
@@ -86,6 +93,10 @@ class BusyBarDisplay:
             cache_dir=config.cache_dir,
             device_key=config.base_url,
         )
+
+    def close(self) -> None:
+        if isinstance(self.client, BusyBar):
+            self.client.close()
 
     def probe(self) -> str:
         try:
@@ -144,6 +155,30 @@ class BusyBarDisplay:
         try:
             self.client.display_draw(payload)
         except exceptions.BusyBarError as error:
+            _translate_error(error)
+
+    def render_frame(self, frame: DisplayFrame) -> None:
+        try:
+            if frame.hidden:
+                cast(ClearClient, self.client).display_clear(application_name=self.application_name)
+                return
+            if not self._icons_uploaded:
+                for provider in ("openai", "anthropic"):
+                    name, payload = converter.convert_for_storage(
+                        f"provider-{provider}.png", icon_png(provider)
+                    )
+                    self.client.assets_upload(self.application_name, Path(name).name, payload)
+                self._icons_uploaded = True
+            self.client.display_draw(
+                types.DisplayElements(
+                    application_name=self.application_name,
+                    priority=self.priority,
+                    elements=frame_elements(frame),
+                )
+            )
+        except exceptions.BusyBarError as error:
+            if isinstance(error, exceptions.BusyBarAPIError) and error.status_code == 404:
+                self._icons_uploaded = False
             _translate_error(error)
 
 

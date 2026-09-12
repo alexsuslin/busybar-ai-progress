@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 
 from .events import SafeEvent
+from .local import atomic_write
 
 
 class EventQueue:
@@ -58,4 +59,5 @@ class EventQueue:
         destination = rejected / path.name
         if destination.exists():
             destination = rejected / f"{path.stem}-{uuid.uuid4().hex}.json"
-        os.replace(path, destination)
+        atomic_write(destination, '{"reason":"invalid_event"}')
+        path.unlink(missing_ok=True)

@@ -40,6 +40,34 @@ class SessionReducer:
     ) -> None:
         self.stale_after_seconds = stale_after_seconds
         self.records = records or {}
+        self._session_numbers: dict[str, int] = {}
+        self._next_session_number = 1
+        self.dismissed: dict[str, str] = {}
+        self._number_sessions()
+
+    def _number_sessions(self) -> None:
+        self._session_numbers = {
+            key: number for key, number in self._session_numbers.items() if key in self.records
+        }
+        for session_id in self.records:
+            if session_id not in self._session_numbers:
+                self._session_numbers[session_id] = self._next_session_number
+                self._next_session_number += 1
+
+    @property
+    def visible_records(self) -> dict[str, SessionRecord]:
+        return {key: record for key, record in self.records.items() if key not in self.dismissed}
+
+    def dismiss(self, session_id: str) -> None:
+        record = self.records.get(session_id)
+        if record is not None:
+            self.dismissed[session_id] = record.timestamp
+
+    def session_number(self, session_id: str) -> int:
+        return self._session_numbers[session_id]
+
+    def session_label(self, session_id: str) -> str:
+        return f"#{self.session_number(session_id):02d}"
 
     def apply(self, event: SafeEvent) -> DisplayState:
         event_time = datetime.fromisoformat(event.timestamp)
@@ -49,17 +77,29 @@ class SessionReducer:
 
         if event.state is DisplayState.REMOVE:
             self.records.pop(event.session_id, None)
+            self.dismissed.pop(event.session_id, None)
         elif event.state is DisplayState.REGISTER:
             self.records.setdefault(
                 event.session_id,
                 SessionRecord.from_event(event, DisplayState.DONE),
             )
         elif event.reason == "tool_complete" and (
-            previous is None or previous.state is not DisplayState.QUESTION
+            previous is None
+            or previous.state not in {DisplayState.QUESTION, DisplayState.CODING}
+            or previous.reason == "final_question"
+            or (
+                previous.turn_id is not None
+                and event.turn_id is not None
+                and previous.turn_id != event.turn_id
+            )
         ):
             pass
         else:
             self.records[event.session_id] = SessionRecord.from_event(event)
+            dismissed_at = self.dismissed.get(event.session_id)
+            if dismissed_at is not None and event_time > datetime.fromisoformat(dismissed_at):
+                self.dismissed.pop(event.session_id)
+        self._number_sessions()
         return self.aggregate(event_time)
 
     def aggregate(self, now: datetime | None = None) -> DisplayState:
@@ -72,6 +112,8 @@ class SessionReducer:
         ]
         for session_id in stale:
             del self.records[session_id]
+            self._session_numbers.pop(session_id, None)
+            self.dismissed.pop(session_id, None)
 
         if any(record.state is DisplayState.QUESTION for record in self.records.values()):
             return DisplayState.QUESTION
@@ -83,6 +125,9 @@ class SessionReducer:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "version": 1,
+            "dismissed": self.dismissed,
+            "session_numbers": self._session_numbers,
+            "next_session_number": self._next_session_number,
             "records": [asdict(self.records[key]) for key in sorted(self.records)],
         }
         temporary: Path | None = None
@@ -128,4 +173,39 @@ class SessionReducer:
                 records[safe.session_id] = SessionRecord.from_event(safe)
         except (OSError, TypeError, ValueError) as error:
             raise ValueError("invalid state snapshot") from error
-        return cls(stale_after_seconds, records)
+        result = cls(stale_after_seconds, records)
+        if "session_numbers" in raw:
+            numbers = raw["session_numbers"]
+            next_number = raw.get("next_session_number")
+            if not isinstance(numbers, dict):
+                raise ValueError("invalid session numbers")
+            entries = cast(dict[str, object], numbers)
+            if set(entries) != set(records) or any(
+                type(number) is not int or not 1 <= number < 2**53 for number in entries.values()
+            ):
+                raise ValueError("invalid session numbers")
+            validated = cast(dict[str, int], entries)
+            if (
+                len(set(validated.values())) != len(validated)
+                or type(next_number) is not int
+                or not max(validated.values(), default=0) < next_number <= 2**53
+            ):
+                raise ValueError("invalid session number counter")
+            result._session_numbers = validated
+            result._next_session_number = next_number
+        dismissed = raw.get("dismissed", {})
+        if not isinstance(dismissed, dict):
+            raise ValueError("invalid dismissed sessions")
+        for session_id, timestamp in cast(dict[str, object], dismissed).items():
+            if session_id not in records or not isinstance(timestamp, str) or len(timestamp) > 64:
+                raise ValueError("invalid dismissed sessions")
+            try:
+                instant = datetime.fromisoformat(timestamp)
+                if instant.tzinfo is None or instant != datetime.fromisoformat(
+                    records[session_id].timestamp
+                ):
+                    raise ValueError
+            except ValueError:
+                raise ValueError("invalid dismissed sessions") from None
+            result.dismissed[session_id] = timestamp
+        return result

@@ -8,3 +8,16 @@
 __pycache__/
 htmlcov/
 *.py[cod]
+.env
+.env.*
+!.env.example
+.codex/
+.claude/
+dist/
+build/
+*.egg-info/
+*.log
+*.pem
+*.key
+auth.json
+.credentials.json

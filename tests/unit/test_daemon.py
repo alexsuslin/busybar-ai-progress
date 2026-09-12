@@ -1,11 +1,15 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from busybar_codex.busybar import DisplayUnavailableError
 from busybar_codex.daemon import StatusDaemon
+from busybar_codex.dashboard import DisplayFrame
 from busybar_codex.events import DisplayState, SafeEvent
 from busybar_codex.queue import EventQueue
 from busybar_codex.state import SessionReducer
+from busybar_codex.telemetry import Telemetry
 
 
 class Clock:
@@ -38,7 +42,7 @@ def queue_event(queue: EventQueue, clock: Clock, state: DisplayState) -> None:
             turn_id="t1",
             state=state,
             timestamp=clock().isoformat(),
-            reason="test",
+            reason="prompt",
         )
     )
 
@@ -110,3 +114,236 @@ def test_processed_state_is_saved_before_display_recovers(tmp_path: Path) -> Non
 
     restored = SessionReducer.load(tmp_path / "state.json", stale_after_seconds=86_400)
     assert restored.aggregate(clock()) is DisplayState.QUESTION
+
+
+def test_dashboard_refreshes_metadata_but_keeps_hidden(tmp_path: Path) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    commands: list[str | int] = []
+    data = Telemetry("gpt-5.4", "high", 25, 200000)
+
+    def drain() -> list[str | int]:
+        result = list(commands)
+        commands.clear()
+        return result
+
+    daemon = StatusDaemon(
+        EventQueue(tmp_path / "queue"),
+        SessionReducer(86400),
+        RecordingDisplay(),
+        tmp_path / "state.json",
+        clock=clock,
+        frame_renderer=frames.append,
+        telemetry=lambda _id: data,
+        controls=drain,
+    )
+    queue_event(daemon.queue, clock, DisplayState.CODING)
+    daemon.step()
+    data = Telemetry("gpt-5.4", "high", 50, 200000)
+    clock.advance(2)
+    daemon.step()
+    assert frames[-1].telemetry.context_percent == 50
+    commands.append("hide")
+    daemon.step()
+    assert frames[-1].hidden
+    count = len(frames)
+    queue_event(daemon.queue, clock, DisplayState.QUESTION)
+    clock.advance(20)
+    daemon.step()
+    assert len(frames) == count
+    commands.append("show")
+    daemon.step()
+    assert not frames[-1].hidden
+    assert frames[-1].state is DisplayState.QUESTION
+
+
+def test_dismissal_is_saved_before_clear_and_new_event_restores_card(tmp_path: Path) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    commands: list[str | int] = []
+    snapshot = tmp_path / "state.json"
+
+    def drain() -> list[str | int]:
+        result = list(commands)
+        commands.clear()
+        return result
+
+    def render(frame: DisplayFrame) -> None:
+        if frame.hidden:
+            restored = SessionReducer.load(snapshot, 86400)
+            from busybar_codex.dashboard import Dashboard
+
+            assert Dashboard().select(restored) is None
+        frames.append(frame)
+
+    daemon = StatusDaemon(
+        EventQueue(tmp_path / "queue"),
+        SessionReducer(86400),
+        RecordingDisplay(),
+        snapshot,
+        clock=clock,
+        frame_renderer=render,
+        controls=drain,
+    )
+    queue_event(daemon.queue, clock, DisplayState.CODING)
+    daemon.step()
+    commands.append("dismiss")
+    daemon.step()
+    assert frames[-1].hidden
+    count = len(frames)
+    clock.advance(20)
+    daemon.step()
+    assert len(frames) == count
+    queue_event(daemon.queue, clock, DisplayState.QUESTION)
+    daemon.step()
+    assert not frames[-1].hidden
+    assert frames[-1].session_tag == "#01"
+    assert frames[-1].question_count == 1
+
+
+def test_dismissed_cards_are_excluded_from_screen_counts(tmp_path: Path) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.QUESTION)
+    queue.put(SafeEvent("s2", None, DisplayState.CODING, clock().isoformat(), "prompt"))
+    daemon.step()
+    daemon.controls = lambda: ["dismiss"]
+    daemon.step()
+    assert frames[-1].session_tag == "#02"
+    assert frames[-1].session_count == 1
+    assert frames[-1].question_count == 0
+    assert daemon.reducer.records["s1"].state is DisplayState.QUESTION
+
+
+def test_start_closes_displayed_card_when_new_question_arrives_in_same_poll(tmp_path: Path) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+    queue.put(SafeEvent("s2", None, DisplayState.QUESTION, clock().isoformat(), "user_input"))
+    daemon.controls = lambda: ["dismiss"]
+    daemon.step()
+    assert frames[-1].session_tag == "#02"
+    assert frames[-1].state is DisplayState.QUESTION
+    assert frames[-1].session_count == 1
+    assert set(daemon.reducer.dismissed) == {"s1"}
+
+
+def test_start_closes_last_successful_frame_after_a_render_failure(tmp_path: Path) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+
+    def offline(_frame: DisplayFrame) -> None:
+        raise DisplayUnavailableError("offline")
+
+    daemon.frame_renderer = offline
+    queue.put(SafeEvent("s2", None, DisplayState.QUESTION, clock().isoformat(), "user_input"))
+    daemon.step()
+    daemon.controls = lambda: ["dismiss"]
+    daemon.step()
+    assert set(daemon.reducer.dismissed) == {"s1"}
+    daemon.controls = lambda: []
+    daemon.frame_renderer = frames.append
+    clock.advance(2)
+    daemon.step()
+    assert frames[-1].session_tag == "#02"
+
+
+def test_failed_dismissal_save_is_retried_before_clearing_screen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+    save = daemon.reducer.save
+    failed = False
+
+    def transient_failure(path: Path) -> None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("synthetic write failure")
+        save(path)
+
+    monkeypatch.setattr(daemon.reducer, "save", transient_failure)
+    daemon.controls = lambda: ["dismiss"]
+    with pytest.raises(OSError):
+        daemon.step()
+    assert not frames[-1].hidden
+    daemon.controls = lambda: []
+    daemon.step()
+    assert frames[-1].hidden
+    restored = SessionReducer.load(tmp_path / "state.json", 86400)
+    assert not restored.visible_records
+
+
+def test_rollout_completion_recovers_missing_hook_and_does_not_reopen_dismissal(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+    clock.advance(1)
+    # Real hooks can use a continuation ID unlike the root rollout turn ID.
+    complete = SafeEvent(
+        "s1", "root-turn", DisplayState.DONE, clock().isoformat(), "rollout_complete"
+    )
+    daemon.lifecycle = lambda _id: (complete,)
+    assert daemon.step() is DisplayState.DONE
+    assert frames[-1].state is DisplayState.DONE
+    daemon.controls = lambda: ["dismiss"]
+    daemon.step()
+    daemon.controls = lambda: []
+    daemon.step()
+    assert frames[-1].hidden
+    assert (
+        SessionReducer.load(tmp_path / "state.json", 86400).records["s1"].state is DisplayState.DONE
+    )
+
+
+def test_old_rollout_start_does_not_override_newer_question_and_future_is_ignored(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    old = SafeEvent("s1", "t1", DisplayState.CODING, clock().isoformat(), "rollout_started")
+    clock.advance(1)
+    queue_event(queue, clock, DisplayState.QUESTION)
+    daemon.lifecycle = lambda _id: (old,)
+    assert daemon.step() is DisplayState.QUESTION
+    future = SafeEvent(
+        "s1", "t1", DisplayState.DONE, (clock() + timedelta(days=1)).isoformat(), "rollout_complete"
+    )
+    daemon.lifecycle = lambda _id: (future,)
+    assert daemon.step() is DisplayState.QUESTION
+
+
+def test_rollout_completion_preserves_final_question_but_next_turn_finishes(tmp_path: Path) -> None:
+    clock = Clock()
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    started = SafeEvent("s1", "t1", DisplayState.CODING, clock().isoformat(), "rollout_started")
+    clock.advance(1)
+    queue.put(SafeEvent("s1", "t1", DisplayState.QUESTION, clock().isoformat(), "final_question"))
+    clock.advance(1)
+    complete = SafeEvent("s1", "t1", DisplayState.DONE, clock().isoformat(), "rollout_complete")
+    daemon.lifecycle = lambda _id: (started, complete)
+    assert daemon.step() is DisplayState.QUESTION
+    clock.advance(1)
+    started = SafeEvent("s1", "t2", DisplayState.CODING, clock().isoformat(), "rollout_started")
+    clock.advance(1)
+    complete = SafeEvent("s1", "t2", DisplayState.DONE, clock().isoformat(), "rollout_complete")
+    assert daemon.step() is DisplayState.DONE
