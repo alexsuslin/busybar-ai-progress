@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import NoReturn, Protocol, cast
 from urllib.parse import urlsplit
@@ -76,6 +77,7 @@ class BusyBarDisplay:
         self.asset_provider = asset_provider
         self._asset_names: dict[DisplayState, str] = {}
         self._icons_uploaded = False
+        self._last_frame: DisplayFrame | None = None
 
     @classmethod
     def from_config(cls, config: Config) -> BusyBarDisplay:
@@ -161,6 +163,7 @@ class BusyBarDisplay:
         try:
             if frame.hidden:
                 cast(ClearClient, self.client).display_clear(application_name=self.application_name)
+                self._last_frame = None
                 return
             if not self._icons_uploaded:
                 for provider in ("openai", "anthropic"):
@@ -169,14 +172,29 @@ class BusyBarDisplay:
                     )
                     self.client.assets_upload(self.application_name, Path(name).name, payload)
                 self._icons_uploaded = True
+            elements = frame_elements(frame)
+            if (
+                self._last_frame is not None
+                and not frame.full_refresh
+                and frame.motion_phase != self._last_frame.motion_phase
+                and replace(frame, motion_phase=None)
+                == replace(self._last_frame, motion_phase=None)
+            ):
+                # Update only the motion lanes; repeated text upserts can restart scrolling.
+                elements = [
+                    element for element in elements if element.id in {"front-motion", "back-motion"}
+                ]
             self.client.display_draw(
                 types.DisplayElements(
                     application_name=self.application_name,
                     priority=self.priority,
-                    elements=frame_elements(frame),
+                    elements=elements,
                 )
             )
+            self._last_frame = frame
         except exceptions.BusyBarError as error:
+            # A failed request may coincide with device restart or lost ownership.
+            self._last_frame = None
             if isinstance(error, exceptions.BusyBarAPIError) and error.status_code == 404:
                 self._icons_uploaded = False
             _translate_error(error)

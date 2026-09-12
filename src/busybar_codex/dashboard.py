@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import cast
@@ -99,6 +99,35 @@ def activity_for(record: SessionRecord | None) -> WorkActivity | None:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionBadge:
+    number: int
+    state: DisplayState
+
+
+@dataclass(frozen=True, slots=True)
+class SessionOverview:
+    sessions: tuple[SessionBadge, ...] = ()
+    page: int = 0
+    pages: int = 0
+
+
+def overview_for(reducer: SessionReducer, selected_id: str | None) -> SessionOverview:
+    visible = reducer.visible_records
+    if len(visible) < 2 or selected_id not in visible:
+        return SessionOverview()
+    ids = sorted(visible, key=reducer.session_number)
+    page = ids.index(selected_id) // 8
+    return SessionOverview(
+        tuple(
+            SessionBadge(reducer.session_number(key), visible[key].state)
+            for key in ids[page * 8 : page * 8 + 8]
+        ),
+        page + 1,
+        (len(ids) + 7) // 8,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class DisplayFrame:
     state: DisplayState
     session_tag: str | None
@@ -107,3 +136,8 @@ class DisplayFrame:
     telemetry: Telemetry
     hidden: bool = False
     activity: WorkActivity | None = None
+    # Time-only changes use the existing ten-second display refresh, not every poll.
+    now: float | None = field(default=None, compare=False)
+    overview: SessionOverview = SessionOverview()
+    motion_phase: int | None = None
+    full_refresh: bool = field(default=False, compare=False)

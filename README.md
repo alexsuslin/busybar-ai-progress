@@ -8,8 +8,48 @@ The **front display** shows the OpenAI/Anthropic icon, model, a short session nu
 (`#01`, `#02`), activity/status, a one-pixel-wide effort scale at the right edge,
 and a context usage bar along the bottom. Long model names scroll; the provider icon stays on the left.
 The **rear display** shows the model name, effort scale, session, session and
-question counts, context usage, and available usage limits. Long names scroll.
+question counts, context usage, up to three available usage-limit windows with reset
+countdowns, and the age of usage data. Long names scroll.
 Icons come from Simple Icons; see the [licenses](THIRD_PARTY_NOTICES.md).
+
+Activity labels use cyan for THINK, blue for TOOL/RUN, violet for CHECK, pale blue
+for COMPACT, amber for ASK and green for DONE. Text always identifies the state;
+CHECK remains an automatic permission evaluation, not a request for your answer.
+The rear question count turns amber when any visible session needs a reply.
+
+The rear data-age line shows `DATA <1m`, `DATA 5m`, or `STALE 15m`. Usage is
+marked stale from 15 minutes onward; its context bars and percentages turn gray.
+Fresh usage turns amber at 80% and red at 95%. These colors describe occupancy or
+quota usage, never task completion. Unknown-age usage is also gray with `AGE N/A`;
+missing usage shows `DATA N/A`. A known zero still reads `0%`.
+Codex age comes from the usage record's timestamp; Claude age comes from receipt
+of statusLine metadata. Neither measures the time since the AI last worked.
+Copying/restoring Claude metadata files may change their receipt age.
+
+Each limit row explicitly says `USED` and `RESET`. Its window duration comes from
+the source (for example, `1h` or `2d`); reset times shorten as appropriate (`2d`,
+`1h 20m`, `5m`, `<1m`). A missing reset timestamp shows `RESET N/A`. An expired
+window disappears until a new snapshot arrives; it never becomes a fresh 0%.
+Age/countdowns use the existing ten-second display refresh, with no extra polling
+of AI accounts. The front layout and one-pixel effort/context scales remain compact.
+
+A small line under the provider icon moves while work is reported. ASK softly
+pulses this line while its text stays steady. When the selected visible session
+changes from working/waiting to DONE, a two-second green acknowledgement plays
+once. Opening an already completed card or showing the widget again does not
+replay it. The moving line is separate from context occupancy and is not progress
+or a promise that a remote AI connection is healthy.
+
+With two or more visible sessions, the rear right column shows up to eight session
+numbers per page: blue for working, amber for questions and green for completed.
+The selected number uses its activity accent and has a white pointer. The page
+indicator and list follow dial selection; dismissed cards are excluded. Long session
+numbers scroll inside the column. This overview does not add button actions.
+
+For a static status display, start with `run --no-animation`, set
+`BUSYBAR_CODEX_ANIMATIONS=0`, or use `animations = false` in your TOML configuration.
+Animations are enabled by default; the CLI switch overrides the configuration.
+This switch disables status motion, while long text retains its normal scrolling.
 
 The **large START button on top** dismisses the selected session card.
 The next undismissed card appears; once every card is dismissed, the widget disappears.
@@ -44,6 +84,12 @@ the timer.
 Activity phases require the corresponding tool and compaction hooks. The pixel effort
 scale additionally requires a validated supported-level list: Codex uses its local model
 catalog; Claude statusLine currently supplies only the selected effort label.
+Usage-age support follows the same client boundaries in the table: Codex requires
+a timezone-aware usage-record timestamp, and Claude requires a statusLine receipt.
+Model-only hooks cannot supply age or limits. New layout behavior is covered by
+synthetic tests. Motion and overview use the same local BUSY Bar display API for
+all supported clients; they do not add AI-client integrations. End-to-end GUI-client
+validation remains separate from synthetic and device-level display checks.
 
 A terminal inside VS Code and a graphical extension are different ways to run an
 assistant. Not all graphical clients call the terminal `statusLine`.
@@ -390,13 +436,18 @@ metadata, control commands, a lock file, and registered Codex WSL directories.
 You can leave the lock file in place: the operating system releases the lock when
 the process exits. Specify a TOML file with `--config PATH`; its keys correspond
 to the settings `address`, `application_name`, `token`, `priority`,
-`stale_after_seconds`, `poll_interval_seconds`, `request_timeout_seconds`, and `log_level`.
+`stale_after_seconds`, `poll_interval_seconds`, `request_timeout_seconds`, `log_level`,
+and `animations` (a TOML boolean). The environment animation override accepts
+`0`/`1` or `false`/`true`, case-insensitively; other values are rejected.
 
 The `run` command supports `--no-input` (disable buttons), `--no-telemetry` (hooks
 only, without reading metadata or lifecycle events from Codex files), and
 `--codex-sessions-dir PATH` (an extra sessions directory; may be repeated).
 Metadata and local lifecycle markers refresh at most once every 2 seconds.
-An unchanged display is refreshed every 10 seconds to recover from lost content.
+A full scene is refreshed every 10 seconds to recover from lost content. Between
+scene changes, enabled motion sends only two small display elements, at most twice
+per second, without re-sending scrolling text. Hidden widgets send no animation.
+Transport recovery restores the full scene; animation never bypasses retry backoff.
 When the device is unavailable, retries slow down to once every 30 seconds.
 The app does not automatically raise its API priority.
 

@@ -2,7 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
-## 0.1.1 - Unreleased
+## 0.1.2 - 2026-09-12
+
+- Add quiet status motion: a small work marker, gentle ASK pulse, and a two-second
+  acknowledgement when the selected visible session completes. Text stays steady;
+  motion does not indicate percentage progress and old DONE cards do not replay it.
+- Add a rear overview of up to eight visible session numbers per page, with state
+  colors, a selected pointer and paging that follows the dial. Dismissed cards stay excluded.
+- Add `run --no-animation`, `BUSYBAR_CODEX_ANIMATIONS=0` and TOML `animations = false`.
+  Status animations default to enabled; long text still scrolls in static mode.
+- Limit motion-only sends to at most two per second using monotonic time. Send only
+  the motion elements between full scenes so model text scrolling is not restarted.
+  Retain ten-second full refresh, hidden suppression, and device retry backoff;
+  after transport failure, restore a full scene before resuming partial updates.
+- Keep motion/overview transient: no new saved state, AI access or device controls.
+  Restart the daemon to load the new display behavior; hooks need no changes.
+
+- Distinguish THINK, TOOL, CHECK and COMPACT with activity colors on both displays;
+  preserve amber ASK and green DONE and highlight the count of waiting sessions.
+- Show up to three exact-duration usage windows with reset countdowns on the rear
+  display. Expired windows disappear; missing reset times remain unknown.
+- Show usage age, marking data stale from 15 minutes and muting stale/unknown-age
+  usage. Fresh occupancy/usage uses amber at 80% and red at 95%. Age derives from
+  usage records or statusLine receipts, never unrelated lifecycle activity.
+- Keep usage observation time transient and out of metadata files and status JSON.
+  Reuse the existing ten-second display refresh, stable element IDs and retry logic.
+  Restart the display daemon to apply the layout; hook reinstallation is not needed
+  specifically for these display changes. Validation uses synthetic data; hardware,
+  emulator-service and end-to-end AI-client checks of this layout are pending.
+
+## 0.1.1 - 2026-09-12
 
 - Show CHECK for permission evaluation instead of treating every tool approval check as ASK.
 - Show THINK between tools, TOOL during ordinary tool calls and COMPACT during compaction.

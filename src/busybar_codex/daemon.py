@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -10,7 +11,7 @@ from threading import Event
 from typing import Protocol
 
 from .busybar import DisplayBusyError, DisplayUnavailableError
-from .dashboard import Dashboard, DisplayFrame, activity_for
+from .dashboard import Dashboard, DisplayFrame, activity_for, overview_for
 from .events import DisplayState, SafeEvent
 from .queue import EventQueue
 from .state import SessionReducer
@@ -35,6 +36,8 @@ class StatusDaemon:
         *,
         poll_interval_seconds: float = 0.2,
         clock: Callable[[], datetime] | None = None,
+        animation_clock: Callable[[], float] = time.monotonic,
+        animations: bool = True,
         jitter: Callable[[], float] | None = None,
         frame_renderer: Callable[[DisplayFrame], None] | None = None,
         telemetry: Callable[[str], Telemetry] | None = None,
@@ -49,6 +52,12 @@ class StatusDaemon:
         self.clock = clock or (lambda: datetime.now(UTC))
         self.jitter = jitter or (lambda: random.uniform(0.0, 0.25))
         self.dashboard = Dashboard()
+        self.animations = animations
+        self.animation_clock = animation_clock
+        self._motion_key: tuple[str | None, DisplayState] | None = None
+        self._motion_started = 0.0
+        self._completion_active = False
+        self._last_motion_draw_at: float | None = None
         self.lifecycle: Callable[[str], tuple[SafeEvent, ...]] = lifecycle or (lambda _id: ())
         self.frame_renderer = frame_renderer
         self.telemetry: Callable[[str], Telemetry] = telemetry or (lambda _id: Telemetry())
@@ -141,9 +150,12 @@ class StatusDaemon:
             data,
             self.dashboard.hidden or record is None,
             activity_for(record),
+            now=now.timestamp(),
+            overview=overview_for(self.reducer, record.session_id if record else None),
         )
         if frame.hidden:
             frame = DisplayFrame(DisplayState.DONE, None, 0, 0, Telemetry(), hidden=True)
+        frame = replace(frame, motion_phase=self._motion_phase(frame))
         if frame != self._pending_frame:
             self._pending_frame = frame
             # Visibility changes are immediate; telemetry changes cannot bypass backoff.
@@ -152,7 +164,19 @@ class StatusDaemon:
         refresh = not frame.hidden and (
             self._last_frame_at is None or (now - self._last_frame_at).total_seconds() >= 10
         )
+        scene_changed = self._last_frame is None or replace(frame, motion_phase=None) != replace(
+            self._last_frame, motion_phase=None
+        )
+        frame = replace(frame, full_refresh=refresh or scene_changed)
         if frame == self._last_frame and not refresh:
+            return
+        instant = self.animation_clock()
+        if (
+            not frame.full_refresh
+            and not frame.hidden
+            and self._last_motion_draw_at is not None
+            and instant - self._last_motion_draw_at < 0.5
+        ):
             return
         if self._next_attempt_at is not None and now < self._next_attempt_at:
             return
@@ -166,9 +190,32 @@ class StatusDaemon:
         else:
             self._displayed_session_id = record.session_id if record and not frame.hidden else None
             self._last_frame = frame
-            self._last_frame_at = now
+            self._last_motion_draw_at = instant
+            if frame.full_refresh:
+                self._last_frame_at = now
             self._next_attempt_at = None
             self._attempts = 0
+
+    def _motion_phase(self, frame: DisplayFrame) -> int | None:
+        if frame.hidden or not self.animations:
+            self._motion_key = None
+            self._completion_active = False
+            return None
+        instant = self.animation_clock()
+        key = (frame.session_tag, frame.state)
+        if key != self._motion_key:
+            self._completion_active = (
+                frame.state is DisplayState.DONE
+                and self._motion_key is not None
+                and self._motion_key[0] == frame.session_tag
+                and self._motion_key[1] in {DisplayState.CODING, DisplayState.QUESTION}
+            )
+            self._motion_key = key
+            self._motion_started = instant
+        elapsed = max(0.0, instant - self._motion_started)
+        if frame.state is DisplayState.DONE:
+            return int(elapsed * 2) if self._completion_active and elapsed < 2 else None
+        return int(elapsed * 2) % 8
 
     def run(self, stop_event: Event | None = None) -> None:
         stop = stop_event or Event()

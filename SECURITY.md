@@ -83,3 +83,35 @@ and other fields are not retained. The optional `effort_levels` metadata field c
 these labels. Missing catalogs, unknown models, mismatched current effort or malformed data
 hide the scale; none are interpreted as zero. Hooks never read model catalogs or open network
 connections. The cache schema is an internal, best-effort source and may change.
+
+
+## Display freshness
+
+`usage_observed_at` is a validated, transient in-memory timestamp only. It is excluded
+from metadata files and the `status` JSON projection. Codex supplies it from the
+bounded usage record already read by the daemon; Claude uses the metadata file's
+receipt modification time after a bounded, consistency-checked read. No new files,
+account access, hook network calls, or persisted fields are introduced. Model hints,
+lifecycle events and unrelated rollout writes cannot refresh the usage timestamp.
+Missing, invalid or future timestamps yield unknown age. Restoring/copying Claude
+metadata can change its apparent receipt time; it is not an authenticated provider
+measurement. Stale usage changes presentation only, never lifecycle, permissions,
+dismissals or task execution. Reset countdowns use supplied timestamps and actual
+window durations; passing a reset clears the old window instead of inventing capacity.
+
+
+## Status motion and session overview
+
+Motion phase, completion timing, overview pages and selected pointers exist only
+in memory. Overview cells reuse already permitted display numbers and lifecycle
+states; they contain no project names, prompts or messages. Animation does not
+read transcripts, infer AI connection health, or change lifecycle state. A steady
+ASK label still requires an authoritative input signal or the documented fallback.
+
+The daemon schedules motion using a monotonic clock, sends motion-only updates at
+most twice per second, retains full refresh/retry rules, and stops motion while
+hidden. Completion acknowledgement is limited to a visible selected transition;
+opening an old completed session does not replay it. START/encoder behavior and
+firmware ownership remain unchanged. Disabling status motion changes presentation
+only. The implementation uses existing rectangle/text upserts, with stable element
+IDs and explicit hiding, not native undocumented animation formats or new assets.

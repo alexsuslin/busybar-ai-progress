@@ -39,6 +39,7 @@ class Config:
     poll_interval_seconds: float = 0.2
     request_timeout_seconds: float = 2.0
     log_level: str = "INFO"
+    animations: bool = True
     config_dir: Path = Path(DIRS.user_config_dir)
     state_dir: Path = Path(DIRS.user_state_dir)
     cache_dir: Path = Path(DIRS.user_cache_dir)
@@ -95,6 +96,21 @@ class Config:
             _raw_text(raw, "log_level", "INFO"),
         ).upper()
 
+        animation_value = env.get("BUSYBAR_CODEX_ANIMATIONS", raw.get("animations", True))
+        if "BUSYBAR_CODEX_ANIMATIONS" in env:
+            if not isinstance(animation_value, str) or animation_value.lower() not in {
+                "0",
+                "1",
+                "false",
+                "true",
+            }:
+                raise ValueError("animations must be true/false or 1/0")
+            animations = animation_value.lower() in {"1", "true"}
+        elif type(animation_value) is bool:
+            animations = animation_value
+        else:
+            raise ValueError("animations must be a boolean")
+
         if not 1 <= priority <= 100:
             raise ValueError("priority must be between 1 and 100")
         if stale_after_seconds <= 0:
@@ -117,6 +133,7 @@ class Config:
             poll_interval_seconds=poll_interval_seconds,
             request_timeout_seconds=request_timeout_seconds,
             log_level=log_level,
+            animations=animations,
             config_dir=config_dir,
             state_dir=state_dir,
             cache_dir=cache_dir,

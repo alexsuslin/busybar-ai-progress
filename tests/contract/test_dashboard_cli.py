@@ -61,7 +61,7 @@ def test_metadata_roundtrip_and_corrupt_file_fail_soft(tmp_path: Path) -> None:
     store = MetadataStore(tmp_path)
     data = Telemetry("claude-sonnet-4-6", "high", 0)
     store.write("a", data)
-    assert store.read("a") == data
+    assert json.loads(store.read("a").to_json()) == json.loads(data.to_json())
     assert store.read("b") == Telemetry()
     next(tmp_path.glob("*.json")).write_text("broken")
     assert store.read("a") == Telemetry()
@@ -201,3 +201,34 @@ def test_lifecycle_source_uses_configured_rollouts_and_refreshes(
     clock[0] += 2
     assert source("a")[-1].state is DisplayState.DONE
     assert source("missing") == ()
+
+
+def test_status_keeps_transient_usage_time_out_of_json(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from busybar_codex.events import DisplayState, SafeEvent
+    from busybar_codex.state import SessionReducer
+
+    class Probe:
+        def probe(self) -> str:
+            return "27.5.0"
+
+    reducer = SessionReducer(86400)
+    reducer.apply(
+        SafeEvent("synthetic", None, DisplayState.CODING, datetime.now(UTC).isoformat(), "prompt")
+    )
+    reducer.save(tmp_path / "state" / "sessions.json")
+    MetadataStore(tmp_path / "state" / "metadata").write("synthetic", Telemetry(context_percent=25))
+    stdout = io.StringIO()
+    assert (
+        main(
+            ["status"],
+            environ=environment(tmp_path),
+            stdout=stdout,
+            display_factory=lambda _: Probe(),
+        )
+        == 0
+    )
+    payload = json.loads(stdout.getvalue())
+    assert payload["sessions"][0]["telemetry"]["context_percent"] == 25
+    assert "usage_observed_at" not in payload["sessions"][0]["telemetry"]

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from types import TracebackType
 from typing import BinaryIO
@@ -47,9 +48,26 @@ class MetadataStore:
     def read(self, session_id: str) -> Telemetry:
         path = self._path(session_id)
         try:
-            if path.stat().st_size > 8192 or time.time() - path.stat().st_mtime > 86400:
+            stat = path.stat()
+            if stat.st_size > 8192 or time.time() - stat.st_mtime > 86400:
                 return Telemetry()
-            return Telemetry.from_json(path.read_text(encoding="utf-8"))
+            with path.open("rb") as stream:
+                content = stream.read(8193)
+            after = path.stat()
+            if len(content) > 8192 or (
+                stat.st_mtime_ns,
+                stat.st_ctime_ns,
+                stat.st_size,
+                stat.st_ino,
+            ) != (after.st_mtime_ns, after.st_ctime_ns, after.st_size, after.st_ino):
+                return Telemetry()
+            data = Telemetry.from_json(content.decode("utf-8"))
+            return replace(
+                data,
+                usage_observed_at=stat.st_mtime
+                if data.context_percent is not None or data.limits
+                else None,
+            )
         except (OSError, ValueError):
             return Telemetry()
 

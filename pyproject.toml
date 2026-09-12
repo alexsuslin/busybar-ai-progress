@@ -1,6 +1,6 @@
 [project]
 name = "busybar-codex-status"
-version = "0.1.1"
+version = "0.1.2"
 description = "Show local Claude Code and Codex session status on a BUSY Bar"
 readme = "README.md"
 license = "MIT"

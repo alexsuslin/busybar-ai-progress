@@ -22,6 +22,19 @@ def number(value: object, maximum: float = 1e12) -> float | None:
     return float(value) if 0 <= value <= maximum and math.isfinite(value) else None
 
 
+def usage_timestamp(value: object) -> float | None:
+    """Read a bounded timezone-aware source timestamp; never substitute file activity."""
+    if not isinstance(value, str) or len(value) > 64:
+        return None
+    try:
+        stamp = datetime.fromisoformat(value)
+        if stamp.tzinfo is not None and stamp.utcoffset() is not None:
+            return number(stamp.timestamp(), 253402300799)
+    except (ValueError, OverflowError, OSError):
+        pass
+    return None
+
+
 def label(value: object) -> str | None:
     if isinstance(value, str) and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,79}", value):
         return value
@@ -43,8 +56,10 @@ class Telemetry:
     context_size: int | None = None
     limits: tuple[RateWindow, ...] = ()
     effort_levels: tuple[str, ...] = ()
+    usage_observed_at: float | None = None
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "usage_observed_at", number(self.usage_observed_at, 253402300799))
         levels = normalize_effort_levels(self.effort_levels)
         object.__setattr__(self, "effort_levels", levels if self.effort in levels else ())
 
@@ -61,7 +76,10 @@ class Telemetry:
         return tuple(item for item in self.limits if item.resets_at is None or item.resets_at > now)
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), separators=(",", ":"), sort_keys=True)
+        payload = asdict(self)
+        # Receipt/source time is transient: the on-disk metadata allowlist is unchanged.
+        payload.pop("usage_observed_at")
+        return json.dumps(payload, separators=(",", ":"), sort_keys=True)
 
     @classmethod
     def from_json(cls, value: str) -> Telemetry:
@@ -316,6 +334,7 @@ class CodexTelemetry:
                         None if changed else data.context_percent,
                         None if changed else data.context_size,
                         data.limits,
+                        usage_observed_at=data.usage_observed_at,
                     )
                 elif row.get("type") == "event_msg" and raw.get("type") == "token_count":
                     info = object_map(raw.get("info"))
@@ -335,5 +354,6 @@ class CodexTelemetry:
                         else None,
                         int(size_value) if size_value else None,
                         tuple(windows),
+                        usage_observed_at=usage_timestamp(row.get("timestamp")),
                     )
         return data, lifecycle

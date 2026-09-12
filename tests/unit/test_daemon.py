@@ -60,6 +60,7 @@ def make_daemon(
         snapshot_path=tmp_path / "state.json",
         clock=clock,
         jitter=lambda: 0.0,
+        animations=False,
     )
     return daemon, queue
 
@@ -400,3 +401,46 @@ def test_normalized_tools_render_activity_and_preserve_explicit_wait(tmp_path: P
         assert isinstance(front, types.TextElement) and front.text == f"#01 {expected}"
         assert frames[-1].question_count == (1 if expected == "ASK" else 0)
         clock.advance(1)
+
+
+def test_freshness_and_reset_update_on_existing_refresh_without_new_events(tmp_path: Path) -> None:
+    from busylib import types
+
+    from busybar_codex.rendering import frame_elements
+    from busybar_codex.telemetry import RateWindow
+
+    clock = Clock()
+    frames: list[DisplayFrame] = []
+    daemon, queue = make_daemon(tmp_path, RecordingDisplay(), clock)
+    daemon.frame_renderer = frames.append
+    data = Telemetry(
+        context_percent=85,
+        limits=(RateWindow(50, 300, clock().timestamp() + 20),),
+        usage_observed_at=clock().timestamp() - 895,
+    )
+    daemon.telemetry = lambda _id: data
+    queue_event(queue, clock, DisplayState.CODING)
+    daemon.step()
+
+    def freshness() -> str:
+        row = next(item for item in frame_elements(frames[-1]) if item.id == "back-freshness")
+        assert isinstance(row, types.TextElement)
+        return row.text
+
+    assert freshness() == "DATA 14m"
+    clock.advance(5)
+    daemon.step()
+    assert len(frames) == 1
+    clock.advance(5)
+    daemon.step()
+    assert len(frames) == 2 and freshness() == "STALE 15m"
+    clock.advance(10)
+    daemon.step()
+    assert frames[-1].telemetry.limits == ()
+    assert frames[-1].state is DisplayState.CODING
+    daemon.dashboard.hidden = True
+    daemon.step()
+    count = len(frames)
+    clock.advance(120)
+    daemon.step()
+    assert len(frames) == count

@@ -8,7 +8,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import suppress
-from dataclasses import asdict, replace
+from dataclasses import replace
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -59,6 +59,7 @@ def _parser() -> Parser:
     commands = parser.add_subparsers(dest="command", required=True)
     run_parser = commands.add_parser("run")
     run_parser.add_argument("--no-input", action="store_true")
+    run_parser.add_argument("--no-animation", action="store_true", help="disable status motion")
     run_parser.add_argument("--no-telemetry", action="store_true")
     run_parser.add_argument("--codex-sessions-dir", type=Path, action="append")
     commands.add_parser("claude-statusline")
@@ -214,7 +215,7 @@ def _status(config: Config, stdout: TextIO, display_factory: DisplayFactory) -> 
             "id": reducer.session_label(record.session_id),
             "state": record.state.value,
             "dismissed": record.session_id in reducer.dismissed,
-            "telemetry": asdict(source(record.session_id)),
+            "telemetry": json.loads(source(record.session_id).to_json()),
         }
         for record in sorted(
             reducer.records.values(), key=lambda r: reducer.session_number(r.session_id)
@@ -357,6 +358,7 @@ def _run(config: Config, display_factory: DisplayFactory, args: argparse.Namespa
             snapshot_path=config.state_dir / "sessions.json",
             poll_interval_seconds=config.poll_interval_seconds,
             frame_renderer=renderer,
+            animations=config.animations and not args.no_animation,
             controls=controls,
             lifecycle=None if args.no_telemetry else lifecycle_source(config, sources=sources),
             telemetry=(None if args.no_telemetry else telemetry_source(config, sources=sources)),

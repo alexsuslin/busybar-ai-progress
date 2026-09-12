@@ -6,7 +6,9 @@ Session statuses and numbers, provider icons, model/effort, context occupancy,
 available limits, two displays, dismissing the selected session with START and switching
 sessions with the encoder. Newer accepted lifecycle activity reopens a dismissed card.
 The Windows/WSL hook installer preserves other settings.
-These features use existing HTTP and WebSocket interfaces without firmware changes.
+Activity colors, usage-age labels, stale-data muting and exact-duration limit rows
+with reset countdowns are implemented with synthetic regression coverage. These
+features use existing HTTP and WebSocket interfaces without firmware changes.
 
 ## Priority 1 — easier everyday use
 
@@ -19,15 +21,16 @@ These features use existing HTTP and WebSocket interfaces without firmware chang
 3. **Automatic selection settings.** Priority-based selection and manual pinning
    for 30 seconds already work. Add a configurable duration and a new-question
    indicator that remains visible while another session is selected manually.
-4. **Data age and waiting time.** Show the time since the last update and how long
-   a session has been waiting for an answer. Distinguish missing data from stale data.
+4. **Waiting time.** Usage age and stale/unknown distinctions are implemented.
+   Add the time a session has been waiting for an answer without conflating it with
+   the age of context or quota data.
 5. **Easy cleanup of synthetic/stuck sessions and bounded retention.** Add
    `forget`/`prune`, a queue size limit, cleanup of old metadata/diagnostics
    and recovery from a corrupt snapshot. Keep hooks short.
 
 ## Priority 2 — more useful information
 
-- Time until limits reset and warnings at 80/95%, with configurable thresholds.
+- Make the implemented 15-minute usage-age threshold and 80/95% usage warnings configurable.
 - A quiet, short sound for QUESTION only; a separate setting for DONE and a night mode.
 - Compare multiple sessions on the back display; optional user-supplied short names
   instead of numbers, without automatically showing project names or prompt text.
@@ -80,3 +83,27 @@ does not remove this limitation.
 Buttons for approving AI permissions, changing reasoning settings and sending text
 are not implemented: they require a stable API that addresses a specific AI session.
 Hiding a status must never be interpreted as permission to perform an action.
+
+
+## Visual improvements from the community-app review
+
+The first stage (activity accents, readable usage/reset rows and data freshness)
+and second stage (quiet motion with a static option and a paged session overview)
+are implemented with synthetic coverage. The following items remain proposals:
+
+- **Native animation playback:** the current small motion lanes use documented
+  rectangle updates. Native `.anim` playback stays experimental until its exact
+  format/API is officially supported and tested. Do not change firmware to enable it.
+- **Companion theme (deferred):** keep the limited display area for readable status
+  information. A character should only be reconsidered with artwork that fits well.
+- **Local settings/preview panel:** preview both displays with synthetic states,
+  choose themes/motion, and show connection health. Reuse the existing daemon and
+  privacy-safe metadata; do not add a competing device controller or AI commands.
+
+References: [busybar-codex](https://github.com/kylewhirl/busybar-codex),
+[busy-codex](https://github.com/wowlocal/busy-codex),
+[busybar-limits](https://github.com/rbhbokka/busybar-limits),
+[Character](https://maxswinkels.github.io/busybar-apps/apps/character/),
+[Uptime Bar](https://maxswinkels.github.io/busybar-apps/apps/uptime-bar/) and
+[busybar-manager](https://github.com/maxswinkels/busybar-manager).
+Both implemented stages use original code; no third-party code/assets are added.
