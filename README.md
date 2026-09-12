@@ -1,199 +1,208 @@
-# BUSY Bar — статус Claude Code и Codex
+# BUSY Bar — Claude Code and Codex status
 
-Программа показывает на BUSY Bar, работает ли AI-помощник, ждёт ли вашего ответа
-и какая сессия сейчас выбрана. Работает на вашем компьютере; отдельный ключ API
-OpenAI или Anthropic не требуется.
+This app shows whether your AI assistant is working or waiting for your reply,
+and which session is selected, on your BUSY Bar. It runs on your computer;
+you do not need a separate OpenAI or Anthropic API key.
 
-На **переднем экране**: значок OpenAI/Anthropic, `CODING`, `QUESTION?` или `DONE`,
-модель, короткий номер сессии (`#01`, `#02`), статус, reasoning и полоска заполнения контекста снизу. Длинное имя модели прокручивается; иконка провайдера остаётся слева.
-На **заднем экране**: название модели, reasoning (уровень усилий рассуждения),
-сессия, число сессий и вопросов, контекст и доступные лимиты использования.
-Длинные названия прокручиваются. Значки взяты из Simple Icons; [лицензии](THIRD_PARTY_NOTICES.md).
+The **front display** shows the OpenAI/Anthropic icon, model, a short session number
+(`#01`, `#02`), `RUN`, `ASK`, or `DONE` status, reasoning effort, and a context usage
+bar along the bottom. Long model names scroll; the provider icon stays on the left.
+The **rear display** shows the model name, reasoning effort, session, session and
+question counts, context usage, and available usage limits. Long names scroll.
+Icons come from Simple Icons; see the [licenses](THIRD_PARTY_NOTICES.md).
 
-**Большая верхняя кнопка START** закрывает выбранную карточку сессии.
-Следом показывается другая незакрытая карточка; когда закрыты все, виджет исчезает.
-**Крутилка** переключает только незакрытые карточки по кругу. Закрытая сессия
-возвращается с прежним номером только после нового события работы, вопроса или
-завершения. Повторная регистрация, старое событие и обновление метаданных её не открывают.
-Закрытие сохраняется после перезапуска программы и не останавливает AI, не отвечает
-на вопросы и не выдаёт разрешения. Сзади больше нет подсказки START/DIAL;
-полоски контекста на обоих экранах имеют высоту один пиксель.
+The **large START button on top** dismisses the selected session card.
+The next undismissed card appears; once every card is dismissed, the widget disappears.
+The **dial** cycles through undismissed cards only. A dismissed session returns with
+its original number only after a new working, question, or completion event.
+Re-registration, old events, and metadata updates do not reopen it.
+Dismissal survives an app restart. It does not stop the AI, answer questions, or
+grant permissions. The rear display no longer has a START/DIAL hint;
+the context bars on both displays are one pixel high.
 
-Команда `dismiss` делает то же, что START. Команды `hide` и `show` отдельно скрывают
-и показывают весь виджет: после `hide` новые события не включают экран до `show`.
-`show` не открывает закрытые карточки. После перезапуска общее скрытие снимается,
-но закрытые карточки остаются закрытыми.
-Кнопка сохраняет и штатное действие прошивки: приложение не перехватывает его эксклюзивно.
-Рекомендуем положение переключателя **APPS**, чтобы не управлять таймером одновременно.
+The `dismiss` command does the same thing as START. The `hide` and `show` commands
+separately hide and show the entire widget: after `hide`, new events do not bring it
+back until `show`. `show` does not reopen dismissed cards. Restarting the app clears
+this overall hidden state, but dismissed cards stay dismissed.
+The button also retains its normal firmware action: this app does not take exclusive
+control of it. We recommend setting the switch to **APPS** to avoid also controlling
+the timer.
 
-## Что поддерживается
+## Supported clients
 
-| Откуда запущен помощник | Статус сессий | Модель, reasoning, контекст, лимиты |
+| Where the assistant runs | Session status | Model, reasoning effort, context, usage limits |
 | --- | --- | --- |
-| Codex CLI в PowerShell / терминале VS Code | Hooks + сверка локальных маркеров начала/конца хода; START закрывает карточку | Из локальных файлов сессии, если поля доступны |
-| Расширение Codex в VS Code, локальная сессия | Hooks + локальные маркеры для уже зарегистрированных сессий | Из локальных файлов того же пользователя |
-| Нативное приложение Codex, локальная сессия | Hooks + локальные маркеры для уже зарегистрированных сессий | Из локальных файлов сессии |
-| Claude Code CLI, в том числе `claude.exe` и терминал VS Code | Через Claude hooks; START закрывает карточку | Через `statusLine` |
-| Расширение Claude Code в VS Code | Через общие настройки hooks | Модель из hook, если передана; остальные поля только если клиент вызывает `statusLine` |
-| Claude Desktop, вкладка **Code**, среда Local | Через общие настройки hooks | Та же граница: hooks не гарантируют весь набор метаданных |
-| Claude Code / Codex в WSL, включая VS Code Remote WSL | Через WSL-мост в Windows | Claude: `statusLine`; Codex: чтение каталога сессий WSL |
-| Обычные чаты Claude Desktop / ChatGPT Desktop, Cowork, браузерные и облачные сессии | Не подключены этим адаптером | Нет универсального источника этих данных; [план](docs/ROADMAP.md) |
+| Codex CLI in PowerShell / the VS Code terminal | Hooks + reconciliation with local turn start/end markers; START dismisses the card | From local session files, when fields are available |
+| Codex VS Code extension, local session | Hooks + local markers for sessions already registered | From local files belonging to the same user |
+| Native Codex app, local session | Hooks + local markers for sessions already registered | From local session files |
+| Claude Code CLI, including `claude.exe` and the VS Code terminal | Through Claude hooks; START dismisses the card | Through `statusLine` |
+| Claude Code VS Code extension | Through shared hook settings | Model from the hook, if provided; other fields only if the client calls `statusLine` |
+| Claude Desktop, **Code** tab, Local environment | Through shared hook settings | The same limitation applies: hooks do not guarantee all metadata fields |
+| Claude Code / Codex in WSL, including VS Code Remote WSL | Through the WSL bridge to Windows | Claude: `statusLine`; Codex: reading the WSL sessions directory |
+| Ordinary Claude Desktop / ChatGPT Desktop chats, Cowork, browser and cloud sessions | Not connected by this adapter | No universal source for these data; see the [roadmap](docs/ROADMAP.md) |
 
-Терминал внутри VS Code и графическое расширение — разные способы запуска.
-Не все графические клиенты вызывают терминальный `statusLine`.
-Поддержка hooks в Claude VS Code и локальном Code подтверждена
-[документацией VS Code](https://code.claude.com/docs/en/vs-code)
-и [Desktop](https://code.claude.com/docs/en/desktop#shared-configuration).
-У Codex источник событий — [официальные hooks](https://learn.chatgpt.com/docs/hooks).
+A terminal inside VS Code and a graphical extension are different ways to run an
+assistant. Not all graphical clients call the terminal `statusLine`.
+Hook support in Claude VS Code and local Code is documented in the official
+[VS Code documentation](https://code.claude.com/docs/en/vs-code)
+and [Desktop documentation](https://code.claude.com/docs/en/desktop#shared-configuration).
+Codex events come from [official hooks](https://learn.chatgpt.com/docs/hooks).
 
-**Что проверено в этом проекте:** автоматические тесты, запуск сгенерированных
-Windows hooks, мост через настоящую Ubuntu/WSL, HTTP-рисование на BUSY Bar с API
-27.5.0 и чтение обоих экранов. WebSocket подключения проверены на устройстве;
-преобразование кнопок/крутилки — на тестовом сервере с настоящими protobuf-пакетами.
-Полная ручная проверка каждого GUI-клиента и физических нажатий отдельно не выполнена.
+**What has been verified in this project:** automated tests, execution of generated
+Windows hooks, the bridge through a real Ubuntu/WSL installation, HTTP drawing on
+BUSY Bar with API 27.5.0, and reading both displays. WebSocket connections have been
+tested on the device; button/dial event conversion has been tested against a test
+server using real protobuf packets. A complete manual check of every GUI client
+and separate verification of physical button presses have not been performed.
 
-## Установка на Windows — по шагам
+## Windows installation, step by step
 
-### 1. Подготовьте BUSY Bar
+### 1. Prepare your BUSY Bar
 
-Подключите его USB-кабелем, который передаёт данные. В браузере откройте
-<http://10.0.4.20>. Если открылась страница устройства — соединение работает.
-Это сетевой адрес USB-подключения, интернет для него не нужен.
+Connect it with a USB cable that supports data transfer. Open
+<http://10.0.4.20> in your browser. If the device page loads, the connection works.
+This is the network address of the USB connection; it does not need internet access.
 
-Можно использовать Wi-Fi: компьютер и BUSY Bar должны видеть друг друга в сети.
-В настройках BUSY Bar включите доступ к HTTP API и узнайте адрес устройства.
-Через облачный адрес кнопки не работают: их WebSocket доступен локально.
+You can also use Wi-Fi: your computer and BUSY Bar must be able to reach each other
+on the network. Enable HTTP API access in BUSY Bar settings and find its address.
+Buttons do not work through a cloud address: their WebSocket is available locally.
 
-### 2. Установите uv
+### 2. Install uv
 
-`uv` — программа, которая сама скачает нужный Python и библиотеки.
-Откройте меню «Пуск», найдите **PowerShell** и вставьте команду:
+`uv` is a tool that downloads the required Python version and libraries for you.
+Open the Start menu, search for **PowerShell**, and paste this command:
 
 ```powershell
 winget install --id astral-sh.uv -e
 ```
 
-Закройте PowerShell, откройте заново и проверьте:
+Close PowerShell, open it again, and check:
 
 ```powershell
 uv --version
 ```
 
-Если `winget` отсутствует, используйте [другой официальный способ установки uv](https://docs.astral.sh/uv/getting-started/installation/).
-Не нужно отдельно устанавливать Python, Node.js или Git для обычного запуска.
+If `winget` is unavailable, use [another official uv installation method](https://docs.astral.sh/uv/getting-started/installation/).
+You do not need to install Python, Node.js, or Git separately for normal use.
 
-### 3. Скачайте проект и установите библиотеки
+### 3. Download the project and install its libraries
 
-Откройте [релиз v0.1.0](https://github.com/alexsuslin/busybar-ai-progress/releases/tag/v0.1.0)
-и скачайте `busybar-ai-progress-v0.1.0.zip` из **Assets**. Распакуйте
-архив в постоянную папку, например `D:\work\busybar-ai-progress`. Не запускайте
-проект прямо из архива. Откройте эту папку в Проводнике, в адресной строке напишите
-`powershell` и нажмите Enter. Все следующие команды вводятся в это окно.
+Open [release v0.1.1](https://github.com/alexsuslin/busybar-ai-progress/releases/tag/v0.1.1)
+and download `busybar-ai-progress-v0.1.1.zip` under **Assets**. Extract the archive
+to a permanent folder, such as `D:\work\busybar-ai-progress`. Do not run the project
+from inside the archive. Open the extracted folder in File Explorer, type
+`powershell` in the address bar, and press Enter. Enter all the following commands
+in that window.
 
 ```powershell
 uv sync --python 3.13 --all-groups --link-mode copy
 ```
 
-Первый запуск требует интернета и может занять несколько минут. Дождитесь возврата
-строки приглашения PowerShell. Активировать виртуальное окружение вручную не нужно.
+The first run needs internet access and may take a few minutes. Wait for the
+PowerShell prompt to return. You do not need to activate the virtual environment
+manually.
 
-### 4. Укажите подключение
+### 4. Configure the connection
 
-Если `.env` уже есть, откройте существующий файл и сохраните нужные значения.
-Если его ещё нет:
+If `.env` already exists, open that file and keep the values you need.
+If it does not exist yet:
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-Для USB достаточно такой строки:
+For USB, this line is enough:
 
 ```dotenv
 BUSYBAR_CODEX_ADDRESS=http://10.0.4.20
 ```
 
-Для Wi-Fi замените адрес на адрес BUSY Bar и, если устройство требует код доступа,
-добавьте `BUSYBAR_CODEX_TOKEN=ваш_код`. Это код **BUSY Bar**, а не токен Claude/OpenAI.
-Не публикуйте `.env`, не присылайте его содержимое в переписку и не коммитьте в Git.
-Убедитесь, что Блокнот сохранил имя `.env`, а не `.env.txt`.
+For Wi-Fi, replace the address with your BUSY Bar address. If the device requires
+an access code, add `BUSYBAR_CODEX_TOKEN=your_code`. This is the **BUSY Bar** code,
+not a Claude/OpenAI token. Do not publish `.env`, share its contents in messages,
+or commit it to Git. Make sure Notepad saves it as `.env`, not `.env.txt`.
 
-Проверьте подключение:
+Check the connection:
 
 ```powershell
 uv run --env-file .env busybar-codex doctor
 ```
 
-Успешный результат содержит `device: ok (API ...)`. Сам код доступа не выводится.
-Файл `.env` загружает именно опция `uv --env-file`; обычный `uv run` его автоматически
-не читает. Адрес/токен нужны процессу отображения; hooks к устройству не подключаются.
+A successful result includes `device: ok (API ...)`. The access code itself is
+not printed. The `uv --env-file` option loads `.env`; plain `uv run` does not load
+it automatically. The display process needs the address/token; hooks do not
+connect to the device.
 
-### 5. Подключите AI-помощники
+### 5. Connect your AI assistants
 
-Установите только нужные вам интеграции, либо обе:
+Install whichever integration you need, or both:
 
 ```powershell
 uv run busybar-codex install-hooks --client codex
 uv run busybar-codex install-hooks --client claude
 ```
 
-Команды добавляют свои записи в пользовательские настройки: Codex —
-`~/.codex/hooks.json`, Claude — `~/.claude/settings.json`. `~` означает вашу домашнюю
-папку Windows. Существующие hooks, разрешения, плагины и status line сохраняются.
-Повторный запуск не создаёт дубликаты наших записей. Установщик не включает hooks
-в обход настроек доверия приложения и не меняет разрешения AI.
+These commands add entries to your user settings: `~/.codex/hooks.json` for Codex
+and `~/.claude/settings.json` for Claude. `~` means your Windows home folder.
+Existing hooks, permissions, plugins, and status lines are preserved.
+Running the installer again does not duplicate this app's entries. The installer
+does not bypass the client's hook trust settings or change AI permissions.
 
-Если появляется `statusline: existing command preserved`, у вас уже настроена своя
-строка состояния Claude. Мы её сохранили. Статусы работают, но полные метаданные
-могут отсутствовать. Для подключения потребуется сознательно объединить скрипты
-или убрать свою `statusLine` и повторить установку. Автоматического выполнения
-чужого скрипта/замены вашей строки состояния нет.
+If you see `statusline: existing command preserved`, you already have a custom
+Claude status line. It has been preserved. Session statuses work, but complete
+metadata may be unavailable. To connect it, you must deliberately combine the
+scripts or remove your own `statusLine` and run the installer again. The installer
+does not automatically run someone else's script or replace your status line.
 
-Полностью перезапустите Codex / Claude / VS Code. В CLI откройте `/hooks`,
-проверьте новые обработчики и подтвердите доверие, если приложение попросит.
-Начните **новую сессию**. Уже начатая сессия может не получить новые hooks.
+Fully restart Codex / Claude / VS Code. In the CLI, open `/hooks`, check the new
+handlers, and confirm trust if the client asks. Start a **new session**.
+A session that was already running may not pick up the new hooks.
 
-Для графического Claude используйте вкладку **Code**, выбрав **Local**.
-Для VS Code установщик запускается на той машине, где реально работает помощник:
-локально — Windows, Remote WSL — следующая инструкция.
+For graphical Claude, use the **Code** tab with **Local** selected.
+For VS Code, run the installer on the machine where the assistant actually runs:
+Windows for local sessions, or follow the next section for Remote WSL.
 
-Некорректные hook-данные пропускаются: ID сессии и хода ограничены форматом и длиной,
-а исходный JSON не сохраняется и не выводится.
+Invalid hook data is skipped: session and turn IDs have format and length limits,
+and the original JSON is never saved or printed.
 
-Локальные `.codex/hooks.json` и `.claude/` не входят в релиз. Установите hooks
-командами выше: они создадут настройки с путями вашего компьютера. Если в рабочем
-проекте уже есть собственные hooks, глобальные и проектные обработчики могут
-сработать оба и дать лишние запуски. Существующие локальные настройки сохраняются.
+Local `.codex/hooks.json` and `.claude/` files are not included in the release.
+Install hooks with the commands above to create settings with paths for your own
+computer. If your working project already has its own hooks, both global and
+project handlers may fire, causing extra invocations. Existing local settings
+are preserved.
 
-### 6. Запустите отображение
+### 6. Start the display process
 
 ```powershell
 uv run --env-file .env busybar-codex run
 ```
 
-Оставьте это окно открытым. Отсутствие новых строк в нём нормально: программа ждёт
-события. Запустите задачу в AI-помощнике — статус должен измениться.
-Второй процесс с тем же каталогом состояния не запустится. Остановка: **Ctrl+C**.
-При обычной остановке программа очищает свой виджет; при принудительном завершении
-процесса последняя картинка может остаться до нового запуска/очистки.
+Leave this window open. It is normal for no new lines to appear: the app is waiting
+for events. Start a task in your AI assistant; the status should change.
+A second process using the same state directory will not start. Press **Ctrl+C**
+to stop. On normal shutdown, the app clears its own widget. If the process is
+forcibly terminated, the last image may remain until the next start or clear.
 
-Чтобы запускать проще, после установки можно открыть PowerShell в папке проекта и выполнить:
+For a simpler launch after installation, open PowerShell in the project folder
+and run:
 
 ```powershell
 .\scripts\start.ps1
 ```
 
-Если политика Windows запрещает `.ps1`, используйте обычную команду `uv run` выше;
-менять системную политику не требуется. Автозапуск при входе в Windows пока не устанавливается.
+If Windows policy blocks `.ps1` files, use the regular `uv run` command above;
+you do not need to change system policy. Automatic startup at Windows sign-in
+is not installed yet.
 
-## WSL и VS Code Remote WSL
+## WSL and VS Code Remote WSL
 
-Основной процесс отображения продолжает работать **в Windows**. В WSL не нужен
-второй экземпляр, второй Python или отдельный HTTP-сервер. Hook из Linux вызывает
-уже установленный Windows Python и пишет нормализованное событие в общий каталог.
-Это использует стандартную возможность WSL запускать `.exe`.
+The main display process continues to run **in Windows**. WSL does not need a
+second instance, another Python installation, or a separate HTTP server.
+The Linux hook calls the already installed Windows Python and writes a normalized
+event to the shared directory. This uses WSL's standard ability to run `.exe` files.
 
-В **Windows PowerShell**, в папке проекта:
+In **Windows PowerShell**, from the project folder:
 
 ```powershell
 wsl --list --quiet
@@ -201,75 +210,83 @@ uv run busybar-codex install-hooks --client claude --wsl-distro Ubuntu
 uv run busybar-codex install-hooks --client codex --wsl-distro Ubuntu
 ```
 
-Замените `Ubuntu` на имя из первой команды. Повторите для других дистрибутивов,
-если пользуетесь несколькими. Установщик определяет домашнюю папку Linux сам,
-добавляет hooks туда и регистрирует каталог сессий Codex для чтения Windows-демоном.
-Перезапустите демон и AI-сессии. Эти же hooks используются в терминале WSL и
-расширении, работающем в окне **VS Code Remote WSL**.
+Replace `Ubuntu` with the name shown by the first command. Repeat for other
+distributions if you use several. The installer finds the Linux home folder,
+adds hooks there, and registers the Codex sessions directory for the Windows
+daemon to read. Restart the daemon and AI sessions. The same hooks serve the
+WSL terminal and extensions running in a **VS Code Remote WSL** window.
 
-Не переносите папку проекта после установки: hooks содержат путь к её Python.
-Если перенос необходим, повторите установку hooks из новой папки.
-Рядом с настройками Claude установщик сохраняет `settings.json.busybar-statusline.json`: это только наша команда строки статуса. По ней повторная установка обновляет старый путь, сохраняя вашу собственную строку статуса. Не удаляйте этот файл до удаления интеграции.
-При отключённом WSL interop этот мост не работает. При собственной конфигурации
-`CODEX_HOME` / `CLAUDE_CONFIG_DIR` в WSL используйте `--target` для реального файла
-настроек и добавьте настоящий каталог Codex через `run --codex-sessions-dir`.
+Do not move the project folder after installation: hooks contain the path to its
+Python executable. If you need to move it, reinstall hooks from the new folder.
+Next to Claude settings, the installer saves `settings.json.busybar-statusline.json`.
+It contains only this app's status line command. The installer uses it to update
+an old path when you reinstall, while preserving your own status line.
+Do not delete this file before uninstalling the integration.
+The bridge does not work if WSL interop is disabled. If you use a custom
+`CODEX_HOME` / `CLAUDE_CONFIG_DIR` in WSL, use `--target` for the actual settings
+file and add the actual Codex directory with `run --codex-sessions-dir`.
 
-## Как читать экран
+## Reading the display
 
-Передний экран: иконка провайдера слева, имя модели сверху, например
-`#03 RUN HIGH` снизу — сессия 3, помощник работает, reasoning high. Если
-модель ещё не передана клиентом, сверху показывается статус; иконка появится
-после получения модели. `N/A` в нижней строке означает неизвестный reasoning.
-У Codex модель и reasoning обычно появляются после первого запроса.
+On the front display, the provider icon is on the left and the model name is at
+the top. A bottom line such as `#03 RUN HIGH` means session 3, assistant working,
+high reasoning effort. If the client has not provided a model yet, the top line
+shows the status; the icon appears once the model arrives. `N/A` on the bottom
+line means unknown reasoning effort. Codex model and reasoning information
+usually appear after the first request.
 
-
-| Надпись | Что она означает |
+| Label | Meaning |
 | --- | --- |
-| `RUN` спереди / `CODING` сзади | Помощник выполняет текущий запрос |
-| `ASK` спереди / `QUESTION?` сзади | Нужен ответ или разрешение; отвечайте в AI-приложении |
-| `DONE` | Выбранная сессия закончила текущий запрос |
-| `REASONING high` | Настроенный уровень рассуждения, а не текст внутренних мыслей |
-| `CTX 25% / 200,000` | Последний известный контекст занимает четверть окна в 200 000 токенов |
-| `USED 5h 23% 7d 41%` | Использовано 23% короткого и 41% недельного лимита |
-| `N/A` | Клиент не передал пригодные данные; это не ноль |
-| `SESSIONS 3 QUESTIONS 1` | Из трёх известных сессий одна ждёт вашего ответа |
+| `RUN` on the front / `CODING` on the rear | The assistant is working on the current request |
+| `ASK` on the front / `QUESTION?` on the rear | A reply or permission is needed; respond in the AI app |
+| `DONE` | The selected session has finished the current request |
+| `REASONING high` | The configured reasoning effort, not the text of internal thoughts |
+| `CTX 25% / 200,000` | The latest known context occupies a quarter of a 200,000-token window |
+| `USED 5h 23% 7d 41%` | 23% of the short usage limit and 41% of the weekly limit have been used |
+| `N/A` | The client has not provided usable data; it does not mean zero |
+| `SESSIONS 3 QUESTIONS 1` | One of three known sessions is waiting for your reply |
 
-Полоса — **контекст**, не прогресс выполнения задачи. Сумма токенов за всю сессию
-не используется как заполнение окна. Размер окна берётся из данных клиента,
-а не из таблицы моделей: одна модель может работать с разным размером контекста.
-После compaction (сжатия истории) полоса может уменьшиться.
+The bar shows **context usage**, not task completion progress. The total tokens
+used throughout a session are not treated as current window occupancy.
+The window size comes from client data, not a model lookup table: the same model
+can run with different context sizes. After compaction (compression of conversation
+history), the bar may shrink.
 
-Автовыбор: вопрос → работа → завершение; при одинаковом статусе показывается
-сессия с самым свежим событием. После поворота крутилки ручной выбор держится
-30 секунд, затем возвращается автовыбор. Закрытые карточки исключаются из автовыбора.
-Смотрите также счётчик вопросов на заднем экране. В `status` доступны все сессии с теми же номерами; `dismissed: true` означает закрытую карточку. Счётчики на устройстве учитывают только незакрытые карточки.
-Номер закрепляется при первом появлении сессии, сохраняется при перезапуске
-программы и не меняется при закрытии соседних сессий. Крутилка переключает
-сессии по порядку номеров. После завершения или удаления устаревшей сессии её
-номер не выдаётся другой; повторное появление удалённой сессии получает новый номер.
-Завершённые карточки можно убрать кнопкой START. Записи сессий удаляются по событию
-SessionEnd или после 24 часов без событий; после такого удаления прежний номер не сохраняется.
-`RUN` означает последнее полученное событие работы, а не проверку процесса AI.
-Для зарегистрированных сессий Codex демон каждые две секунды сверяет локальные
-`task_started` / `task_complete` / `turn_aborted`: пропущенный Stop восстанавливается
-из завершения хода. Читаются только разрешённые lifecycle-поля в пределах того же
-ограниченного чтения, что и метаданные. Новое начало возвращает RUN; старые события
-не перекрывают более свежие hooks, финальный вопрос текущего хода сохраняется.
-Формат локального файла — best-effort источник, не публичный стабильный API.
-Без пригодных маркеров, с `--no-telemetry` или у Claude пропущенный Stop всё ещё
-может оставить старый статус до следующего события или истечения срока. Запоздалый PostToolUse после финального вопроса, завершения
-или от другого известного turn ID не включает `RUN`.
+Automatic selection prioritizes questions, then work, then completion. If statuses
+match, the session with the newest event is shown. Turning the dial keeps your
+manual selection for 30 seconds, then automatic selection resumes. Dismissed cards
+are excluded from automatic selection. Also check the question count on the rear
+display. `status` lists all sessions with the same numbers; `dismissed: true` means
+a dismissed card. Counts on the device include only undismissed cards.
+A session receives its number when it first appears. The number survives app
+restarts and does not change when neighboring sessions are dismissed. The dial
+cycles through sessions in number order. A number is never reassigned to another
+session after completion or removal of a stale session; if a removed session
+reappears, it receives a new number. You can dismiss completed cards with START.
+Session records are removed on SessionEnd or after 24 hours without events;
+once removed, their previous numbers are not retained.
+`RUN` reflects the last received working event; it is not a check of the AI process.
+For registered Codex sessions, the daemon reconciles local `task_started` /
+`task_complete` / `turn_aborted` markers every two seconds, recovering a missed
+Stop from the turn completion. It reads only allowed lifecycle fields within
+the same bounded reads used for metadata. A new start restores RUN; old events
+do not override newer hooks, and the current turn's final question is preserved.
+The local file format is a best-effort source, not a stable public API.
+Without usable markers, with `--no-telemetry`, or with Claude, a missed Stop can
+still leave an old status until the next event or expiry. A late PostToolUse after
+a final question or completion, or from another known turn ID, does not restore `RUN`.
 
-Лимиты показываются только когда их передаёт клиент. У Codex длительность окна
-берётся из события: это может быть 1h, 5h, 7d и т. п. У Claude используются
-[поля `statusLine`](https://code.claude.com/docs/en/statusline#available-data).
-Отсутствующий тарифный лимит не подменяется API-лимитом запросов в минуту.
-После времени сброса старый процент скрывается до новых данных. Известные проценты
-— последний снимок клиента, они не запрашиваются отдельно у провайдера.
+Usage limits appear only when the client provides them. For Codex, the window
+duration comes from the event: it may be 1h, 5h, 7d, and so on. Claude uses
+[`statusLine` fields](https://code.claude.com/docs/en/statusline#available-data).
+A missing subscription limit is not replaced with an API requests-per-minute limit.
+After the reset time, the old percentage is hidden until new data arrives.
+Known percentages are the client's latest snapshot; the app does not request
+them separately from the provider.
 
-## Проверка без запроса к AI
+## Check without sending an AI request
 
-Пока `run` работает, откройте второе окно PowerShell в папке проекта:
+While `run` is running, open a second PowerShell window in the project folder:
 
 ```powershell
 uv run busybar-codex set coding --session demo-one
@@ -284,79 +301,85 @@ uv run busybar-codex set done --session demo-one
 uv run busybar-codex set done --session demo-two
 ```
 
-У искусственных сессий нет модели и лимитов, поэтому `N/A` нормально. Команды
-`set`/`dismiss`/`hide`/`show` кладут события в очередь; без работающего `run` экран не изменится.
+Synthetic sessions have no model or limits, so `N/A` is expected. The
+`set`/`dismiss`/`hide`/`show` commands enqueue events; the display will not change
+unless `run` is running.
 
-## Если что-то не работает
+## Troubleshooting
 
-| Проблема | Что сделать |
+| Problem | What to do |
 | --- | --- |
-| `uv` не найден | Перезапустить PowerShell после установки uv |
-| `device: unavailable` | Проверить кабель/адрес, открыть страницу BUSY Bar в браузере, повторить `doctor` |
-| Wi-Fi требует авторизацию | Проверить код BUSY Bar в `.env` и флаг `--env-file .env` |
-| Экран занят таймером/другим приложением | Остановить его или перейти в APPS; программа уважает приоритет и повторяет попытки |
-| Ничего не меняется от AI | Проверить, что `run` открыт, hooks доверены и сессия создана после установки |
-| WSL работает, а BUSY Bar молчит | Проверить имя дистрибутива, доступ к Windows `.exe`, перезапустить демон после установки WSL hooks |
-| Новая сессия в другой папке не появляется | Установить глобальные hooks: `install-hooks --client codex`, разрешить записи BUSY Bar в `/hooks`, перезапустить Codex / окно VS Code; `doctor` отдельно показывает глобальный и проектный файл |
-| Статус есть, модель/контекст — `N/A` | Проверить способ запуска в таблице; у GUI может не быть statusLine, а формат Codex может измениться |
-| Кнопки не работают через прокси | Прокси должен пропускать WebSocket `/api/status/ws`; попробуйте прямой USB/Wi-Fi адрес |
-| `BUSY Bar is already running...` | Программа уже запущена для этого каталога состояния. Пользуйтесь работающим экземпляром или остановите его через `Ctrl+C` в его терминале перед новым запуском |
-| `operational failure: OSError` | Проверить доступность папок настроек и состояния; это отдельная ошибка файловой системы |
-| `invalid configuration or state` | Проверить числа/JSON/TOML; при повреждённом состоянии остановить демон и переименовать `sessions.json` в каталоге состояния |
-| Старые сессии мешают на экране | Выберите карточку крутилкой и нажмите START; повторите для остальных. Она вернётся при новой активности |
-| После закрытия окна осталась картинка | Запустить демон снова, выполнить `hide`; корректно завершать через Ctrl+C |
+| `uv` not found | Restart PowerShell after installing uv |
+| `device: unavailable` | Check the cable/address, open the BUSY Bar page in a browser, and run `doctor` again |
+| Wi-Fi requires authentication | Check the BUSY Bar code in `.env` and the `--env-file .env` flag |
+| A timer/another app occupies the screen | Stop it or switch to APPS; this app respects priority and retries |
+| AI activity does not change anything | Check that `run` is running, hooks are trusted, and the session was created after installation |
+| WSL works, but BUSY Bar shows nothing | Check the distribution name and access to Windows `.exe` files; restart the daemon after installing WSL hooks |
+| A new session in another folder does not appear | Install global hooks with `install-hooks --client codex`, allow the BUSY Bar entries in `/hooks`, and restart Codex / the VS Code window; `doctor` reports global and project files separately |
+| Status appears, but model/context shows `N/A` | Check your client in the support table; a GUI may not call statusLine, and the Codex format may change |
+| Buttons do not work through a proxy | The proxy must forward WebSocket `/api/status/ws`; try the direct USB/Wi-Fi address |
+| `BUSY Bar is already running...` | The app is already running for this state directory. Use that instance or stop it with `Ctrl+C` in its terminal before starting another |
+| `operational failure: OSError` | Check access to settings and state directories; this is a separate filesystem error |
+| `invalid configuration or state` | Check numbers/JSON/TOML; if state is damaged, stop the daemon and rename `sessions.json` in the state directory |
+| Old sessions clutter the display | Select a card with the dial and press START; repeat for other cards. A card returns on new activity |
+| The image remains after closing the window | Start the daemon again and run `hide`; use Ctrl+C for a clean shutdown |
 
-Логи содержат только технические коды и классы ошибок. Не включайте HTTP/WS debug-логи
-для отчёта об ошибке: сторонняя библиотека может вывести адрес с кодом доступа.
-Сообщите версию программы, версию API, способ запуска (CLI/VS Code/WSL/Desktop)
-и результат проверки без содержимого `.env` и истории диалога.
+Logs contain only technical reason codes and exception class names. Do not enable
+HTTP/WS debug logs for a bug report: a third-party library may print an address
+containing the access code. Include the app version, API version, client type
+(CLI/VS Code/WSL/Desktop), and check result, without `.env` contents or conversation
+history.
 
-## Настройки и файлы
+## Settings and files
 
-Приоритет: параметры приложения → переменные окружения → TOML → значения по умолчанию.
-Глобальные параметры пишутся **перед** командой: `busybar-codex --address ... run`.
-Флаг uv `--env-file` пишется **перед** `busybar-codex`.
+Precedence: app arguments → environment variables → TOML → defaults.
+Global arguments go **before** the command: `busybar-codex --address ... run`.
+The uv `--env-file` flag goes **before** `busybar-codex`.
 
-| Переменная | По умолчанию |
+| Variable | Default |
 | --- | --- |
 | `BUSYBAR_CODEX_ADDRESS` | `http://10.0.4.20` |
-| `BUSYBAR_CODEX_TOKEN` | Не задан |
+| `BUSYBAR_CODEX_TOKEN` | Unset |
 | `BUSYBAR_CODEX_APPLICATION_NAME` | `codex-status` |
 | `BUSYBAR_CODEX_PRIORITY` | `50` (1–100) |
 | `BUSYBAR_CODEX_STALE_AFTER_SECONDS` | `86400` |
 | `BUSYBAR_CODEX_POLL_INTERVAL_SECONDS` | `0.2` |
 | `BUSYBAR_CODEX_REQUEST_TIMEOUT_SECONDS` | `2` |
 | `BUSYBAR_CODEX_LOG_LEVEL` | `INFO` |
-| `BUSYBAR_CODEX_STATE_DIR` | Каталог приложения в профиле пользователя |
+| `BUSYBAR_CODEX_STATE_DIR` | App directory in the user profile |
 
-`--state-dir` позволяет явно задать общий каталог. При его изменении переустановите
-hooks с тем же `--state-dir`, иначе события будут попадать в другое место.
-`BUSYBAR_CODEX_CONFIG_DIR`, `CACHE_DIR`, `LOG_DIR` с полным префиксом `BUSYBAR_CODEX_`
-позволяют перенести остальные каталоги. Посмотреть их без секретов:
+Use `--state-dir` to set the shared directory explicitly. If you change it,
+reinstall hooks with the same `--state-dir`, or events will go to a different place.
+`BUSYBAR_CODEX_CONFIG_DIR`, `BUSYBAR_CODEX_CACHE_DIR`, and `BUSYBAR_CODEX_LOG_DIR`
+let you move the other directories. To view their paths without secrets:
 
 ```powershell
 uv run python -c "from busybar_codex.config import Config; c=Config.load(); print('state:', c.state_dir); print('logs:', c.log_dir); print('config:', c.config_dir)"
 ```
 
-В состоянии хранятся очередь, `sessions.json` (включая номера сессий и `dismissed`: ID закрытой сессии → время её последнего события), безопасные метаданные Claude,
-команды управления, lock-файл и зарегистрированные каталоги Codex WSL.
-Lock-файл можно оставить: блокировку снимает операционная система при завершении процесса.
-Файл TOML задаётся через `--config PATH`; имена ключей соответствуют настройкам
-`address`, `application_name`, `token`, `priority`, `stale_after_seconds`,
-`poll_interval_seconds`, `request_timeout_seconds`, `log_level`.
+The state directory contains the queue, `sessions.json` (including session numbers
+and `dismissed`: dismissed session ID → time of its latest event), safe Claude
+metadata, control commands, a lock file, and registered Codex WSL directories.
+You can leave the lock file in place: the operating system releases the lock when
+the process exits. Specify a TOML file with `--config PATH`; its keys correspond
+to the settings `address`, `application_name`, `token`, `priority`,
+`stale_after_seconds`, `poll_interval_seconds`, `request_timeout_seconds`, and `log_level`.
 
-У `run` есть `--no-input` (отключить кнопки), `--no-telemetry` (только hooks, без чтения metadata и lifecycle из файлов Codex),
-`--codex-sessions-dir PATH` (дополнительный каталог сессий; можно повторять).
-Метаданные и локальные lifecycle-маркеры обновляются не чаще раза в 2 секунды, неизменный экран — раз в 10 секунд
-для восстановления после потери отображения. При недоступности устройства повторные
-попытки замедляются до 30 секунд. API-приоритет самопроизвольно не повышается.
+The `run` command supports `--no-input` (disable buttons), `--no-telemetry` (hooks
+only, without reading metadata or lifecycle events from Codex files), and
+`--codex-sessions-dir PATH` (an extra sessions directory; may be repeated).
+Metadata and local lifecycle markers refresh at most once every 2 seconds.
+An unchanged display is refreshed every 10 seconds to recover from lost content.
+When the device is unavailable, retries slow down to once every 30 seconds.
+The app does not automatically raise its API priority.
 
-## Обновление и удаление
+## Updating and uninstalling
 
-Остановите `run`, обновите файлы проекта и повторите `uv sync`. Снова выполните
-`install-hooks` для используемых сред, особенно если папка или Python изменились.
+Stop `run`, update the project files, and run `uv sync` again. Repeat
+`install-hooks` for the environments you use, especially if the folder or Python
+path has changed.
 
-Перед удалением папки проекта отключите интеграции:
+Before deleting the project folder, remove the integrations:
 
 ```powershell
 uv run busybar-codex uninstall-hooks --client codex
@@ -365,32 +388,32 @@ uv run busybar-codex uninstall-hooks --client codex --wsl-distro Ubuntu
 uv run busybar-codex uninstall-hooks --client claude --wsl-distro Ubuntu
 ```
 
-Выполняйте только команды для тех сред, которые подключали. Наши hooks удаляются,
-чужие настройки остаются. Наша status line удаляется только при совпадении с
-установленной командой. Пользовательские данные можно оставить или удалить вручную
-после остановки программы; AI-историю программа не удаляет.
+Run only the commands for environments you connected. This app's hooks are removed;
+unrelated settings remain. Its status line is removed only if it matches the
+installed command. You can keep user data or remove it manually after stopping
+the app; the app does not delete AI conversation history.
 
-## Эмулятор и разработка
+## Emulator and development
 
-Без устройства можно использовать [неофициальный эмулятор](https://github.com/maxswinkels/busybar-emulator).
-Для него дополнительно нужны Git и Node.js 22+:
+Without a device, you can use the [unofficial emulator](https://github.com/maxswinkels/busybar-emulator).
+It also requires Git and Node.js 22+:
 
 ```powershell
 .\scripts\emulator.ps1 install
 .\scripts\emulator.ps1 start
 ```
 
-Откройте <http://127.0.0.1:8080>. Во втором окне:
+Open <http://127.0.0.1:8080>. In a second window:
 
 ```powershell
 uv run busybar-codex --address http://127.0.0.1:8080 run --no-input
 ```
 
-Эмулятор не заменяет проверку заднего дисплея и физических контролов.
-Через [busybar-manager](https://github.com/maxswinkels/busybar-manager) тоже можно работать,
-если он передаёт нужные HTTP-запросы и WebSocket; иначе используйте `--no-input`.
+The emulator does not replace checks of the rear display and physical controls.
+You can also use [busybar-manager](https://github.com/maxswinkels/busybar-manager)
+if it forwards the required HTTP requests and WebSocket; otherwise, use `--no-input`.
 
-Обязательные проверки:
+Required checks:
 
 ```powershell
 uv run pytest
@@ -399,7 +422,7 @@ uv run ruff format --check .
 uv run pyright
 ```
 
-Дополнительные проверки изменяют экран реального устройства или используют WSL:
+Optional checks change the real device's display or use WSL:
 
 ```powershell
 $env:BUSYBAR_TEST_WSL = 'Ubuntu'
@@ -408,6 +431,6 @@ $env:BUSYBAR_HARDWARE_TEST = '1'
 uv run --env-file .env pytest tests/integration/test_dashboard_hardware.py
 ```
 
-Для старых статических изображений остаётся команда `render-assets`.
-Подробности: [CONTRIBUTING](CONTRIBUTING.md), [приватность](SECURITY.md),
-[исследование аналогов](docs/RESEARCH.md), [идеи и будущие релизы](docs/ROADMAP.md).
+The `render-assets` command remains available for the older static images.
+For more information, see [CONTRIBUTING](CONTRIBUTING.md), [privacy](SECURITY.md),
+[related-project research](docs/RESEARCH.md), and [ideas and future releases](docs/ROADMAP.md).

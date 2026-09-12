@@ -372,7 +372,14 @@ def _asks_for_input(message: object) -> bool:
     if not isinstance(message, str):
         return False
     normalized = message.strip().casefold()
-    phrases = ("please choose", "which option", "reply with", "ответь одним", "выбери вариант")
+    # The escaped phrases also match Russian prompts: "reply with one" and "choose an option".
+    phrases = (
+        "please choose",
+        "which option",
+        "reply with",
+        "\u043e\u0442\u0432\u0435\u0442\u044c \u043e\u0434\u043d\u0438\u043c",
+        "\u0432\u044b\u0431\u0435\u0440\u0438 \u0432\u0430\u0440\u0438\u0430\u043d\u0442",
+    )
     return normalized.endswith("?") or any(phrase in normalized for phrase in phrases)
 
 

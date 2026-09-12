@@ -1,50 +1,50 @@
-# Аналоги и выбранные решения
+# Related projects and design choices
 
-Проверено 11 сентября 2026 года. Смотрели README, лицензии и соответствующие
-исходные файлы, а не только количество звёзд. Код этих проектов не переносился;
-идеи реализованы самостоятельно. Исключение для графики: лицензированные значки
-Simple Icons, перечисленные в [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md).
+Reviewed on September 11, 2026. The review covered READMEs, licenses and relevant
+source files, beyond star counts. No code was copied from these projects;
+the ideas were implemented independently. The exception for graphics is the licensed
+Simple Icons listed in [THIRD_PARTY_NOTICES](../THIRD_PARTY_NOTICES.md).
 
-| Проект | Что полезно | Что использовано здесь / ограничения |
+| Project | Useful ideas | What was adopted here / limitations |
 | --- | --- | --- |
-| [futurepaul/busybar-codex](https://github.com/futurepaul/busybar-codex) — MIT | Локальные rollout-файлы, два дисплея, подтверждение большой кнопкой через busylib | Разделение дисплеев и штатный WebSocket. Здесь показываются только безопасные метаданные, без текстов активности. Его автозапуск ориентирован на macOS |
-| [kylewhirl/busybar-codex](https://github.com/kylewhirl/busybar-codex) — MIT | Крутилка, выбор задач, отдельные экраны управления | Взята идея явной выбранной сессии и подсказок управления. Его глубокий мост к Codex Micro/macOS использует внутренний интерфейс и CDP; это не переносимый Windows API |
-| [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) — MIT | Короткие lifecycle hooks, объединение записей установщиком | Добавлен повторяемый установщик и удаление только своих hooks. Чужая status line сохраняется. Полные копии пользовательских settings не создаются: внутри могут быть credentials |
-| [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk) | Отдельные адаптеры Codex/Claude, statusLine, различия WSL и Windows | Добавлены явный WSL-мост и отдельные каталоги метаданных. Нельзя переносить предположение, что localhost одинаково работает во всех WSL-сетевых режимах. Здесь hooks вообще не используют сеть |
-| [eunai/busybar-relay](https://github.com/eunai/busybar-relay) — MIT | Акцент на моменте, когда человеку нужно ответить | Сохраняем различие QUESTION и DONE. На момент проверки репозиторий содержит преимущественно документацию, а не готовую переносимую реализацию |
-| [maxswinkels/busybar-apps](https://github.com/maxswinkels/busybar-apps) | Галерея приложений и общий способ запуска через manager | Используется как источник совместимости и идей для будущей упаковки. Manager и эмулятор остаются необязательными |
+| [futurepaul/busybar-codex](https://github.com/futurepaul/busybar-codex) — MIT | Local rollout files, two displays, approval with the large button through busylib | Separate display roles and the standard WebSocket interface. This project shows only safe metadata, without activity text. That project's automatic startup targets macOS |
+| [kylewhirl/busybar-codex](https://github.com/kylewhirl/busybar-codex) — MIT | Encoder, task selection, separate control screens | Adopted the idea of an explicitly selected session and control hints. Its deep integration with Codex Micro/macOS uses an internal interface and CDP; this is not a portable Windows API |
+| [m1ckc3s/claude-status-bar](https://github.com/m1ckc3s/claude-status-bar) — MIT | Short lifecycle hooks, merging configuration entries during installation | Added an installer that can run repeatedly and removes only its own hooks. Existing status lines are preserved. Complete copies of user settings are not created because they may contain credentials |
+| [rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk) | Separate Codex/Claude adapters, statusLine, WSL and Windows differences | Added an explicit WSL bridge and separate metadata directories. The assumption that localhost behaves identically in every WSL networking mode cannot be carried over. Hooks in this project do not use the network |
+| [eunai/busybar-relay](https://github.com/eunai/busybar-relay) — MIT | Focus on the moment when a person needs to respond | Preserved the distinction between QUESTION and DONE. At the time of review, the repository mainly contained documentation, rather than a ready-to-use portable implementation |
+| [maxswinkels/busybar-apps](https://github.com/maxswinkels/busybar-apps) | App gallery and a shared way to launch apps through the manager | Used as a source of compatibility information and ideas for future packaging. The manager and emulator remain optional |
 
-## Почему не одно решение для всех окон
+## Why one solution does not cover every window
 
-События идут от процесса помощника, а не от названия окна. Например, VS Code
-может запускать Windows CLI, встроенное расширение или расширение внутри WSL.
-У этих вариантов разные домашние папки и доступные источники данных.
+Events come from the assistant process, rather than the window title. For example,
+VS Code can run a Windows CLI, an integrated extension or an extension inside WSL.
+These options have different home directories and available data sources.
 
-У Claude [VS Code](https://code.claude.com/docs/en/vs-code#configure-claude-code)
-и локальный [Desktop Code](https://code.claude.com/docs/en/desktop#shared-configuration)
-используют общие hooks. Терминальный
-[statusLine](https://code.claude.com/docs/en/statusline#available-data) даёт более богатую
-телеметрию, но наличие настроек hooks не доказывает, что GUI запускает statusLine.
-Поэтому поддержка статуса и поддержка процентов описаны отдельно.
+Claude [VS Code](https://code.claude.com/docs/en/vs-code#configure-claude-code)
+and local [Desktop Code](https://code.claude.com/docs/en/desktop#shared-configuration)
+share hooks. The terminal
+[statusLine](https://code.claude.com/docs/en/statusline#available-data) provides richer
+telemetry, but the presence of hook settings does not prove that the GUI invokes statusLine.
+Status support and percentage support are therefore documented separately.
 
-У Codex hooks отвечают за жизненный цикл, а локальные rollout-метаданные — за модель,
-effort, последнее заполнение окна и rate limits. Формат rollout — деталь реализации,
-поэтому адаптер ограничивает чтение и возвращает N/A при отсутствии понятных полей.
-Он не открывает файлы аутентификации и не воспроизводит приватные запросы аккаунта.
+Codex hooks provide lifecycle events, while local rollout metadata provides the model,
+effort, latest context window occupancy and rate limits. The rollout format is an
+implementation detail, so the adapter limits its reads and returns N/A when recognized
+fields are unavailable. It does not open authentication files or replay private account requests.
 
-В WSL выбран запуск Windows `.exe` через штатный interop: тот же код нормализации
-пишет в тот же каталог Windows. Нет HTTP listener, открытого порта, API-токена или
-сырых POST с содержимым hook. Это отличается от сетевых relay-решений и соответствует
-правилу проекта о hooks с локальными записями.
+For WSL, the chosen approach runs a Windows `.exe` through standard interop: the same
+normalization code writes to the same Windows directory. There is no HTTP listener,
+open port, API token or raw POST containing hook data. This differs from network relay
+solutions and follows the project's rule that hooks perform local writes only.
 
-## Возможности устройства
+## Device capabilities
 
-Официальный [busylib](https://github.com/busy-app/busylib-py) предоставляет HTTP
-для экрана и [WebSocket состояния](https://busy-app.github.io/busylib-py/guides/device-state/)
-для контролов. Обновление элементов выполняется по ID; пропуск элемента не означает
-его удаление. Поэтому приложение передаёт постоянный набор элементов и явно скрывает
-неактуальные. Это также проверено на реальном устройстве с API 27.5.0.
+The official [busylib](https://github.com/busy-app/busylib-py) provides HTTP
+for the display and a [state WebSocket](https://busy-app.github.io/busylib-py/guides/device-state/)
+for controls. Elements are updated by ID; omitting an element does not delete it.
+The app therefore sends a stable set of elements and explicitly hides stale ones.
+This was also verified on physical hardware running API 27.5.0.
 
-Физические кнопки сохраняют встроенное действие. Эксклюзивный перехват, управление
-обычными Chat/Cowork-сессиями и надёжный универсальный мост к приватному UI не объявлены
-готовыми функциями. Следующие шаги перечислены в [ROADMAP](ROADMAP.md).
+Physical buttons retain their built-in behavior. Exclusive control capture, control of
+ordinary Chat/Cowork sessions and a reliable universal bridge to private UI interfaces
+are not claimed as completed features. Next steps are listed in [ROADMAP](ROADMAP.md).

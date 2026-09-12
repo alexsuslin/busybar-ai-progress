@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.1.1 - 2026-09-12
+
+- Translate the beginner README, research notes, roadmap and remaining planning prose into English.
+- Require English for all project documentation and public GitHub release text in AGENTS.md.
+- Publish English release notes and refreshed source archives; application behavior is unchanged.
+
 ## 0.1.0 - 2026-09-12
 
 ### Session dashboard

@@ -1,80 +1,82 @@
-# Следующие релизы
+# Upcoming releases
 
-## Что уже сделано
+## Already implemented
 
-Статусы и номера сессий, значки провайдеров, модель/effort, заполнение контекста,
-доступные лимиты, два дисплея, скрытие/возврат большой кнопкой и переключение
-сессий крутилкой. Установщик Windows/WSL hooks сохраняет другие настройки.
-Эти функции используют существующие HTTP и WebSocket, без изменения прошивки.
+Session statuses and numbers, provider icons, model/effort, context occupancy,
+available limits, two displays, dismissing the selected session with START and switching
+sessions with the encoder. Newer accepted lifecycle activity reopens a dismissed card.
+The Windows/WSL hook installer preserves other settings.
+These features use existing HTTP and WebSocket interfaces without firmware changes.
 
-## Приоритет 1 — проще пользоваться каждый день
+## Priority 1 — easier everyday use
 
-1. **Трей Windows и автозапуск.** Кнопки «Запустить», «Скрыть», «Перезапустить»,
-   «Проверить подключение», выбор устройства и журнал безопасных кодов ошибок.
-   Добавить подписанный установщик и штатное удаление автозапуска.
-2. **Мастер установки.** Найти установленные CLI/VS Code/WSL, показать отдельные
-   результаты: hook установлен, доверен клиентом, событие пришло, метаданные пришли.
-   Сейчас installer устанавливает записи, но не может подтвердить доверие за пользователя.
-3. **Настройка автовыбора.** Выбор по приоритету и ручное закрепление на 30 секунд
-   уже работают. Добавить настройку длительности и индикатор нового вопроса,
-   который виден даже при ручном просмотре другой сессии.
-4. **Возраст данных и время ожидания.** Показать, сколько прошло с последнего
-   обновления и сколько сессия ждёт ответа. Отличать «нет данных» от «данные устарели».
-5. **Удобный сброс искусственных/зависших сессий и ограничение хранения.** Добавить
-   `forget`/`prune`, ограничение размера очереди, очистку старых метаданных/диагностик
-   и восстановление после повреждения снимка. Hooks при этом остаются короткими.
+1. **Windows tray and automatic startup.** Actions for Start, Hide, Restart and
+   Check connection, plus device selection and a log of safe error codes.
+   Add a signed installer and a supported way to remove automatic startup.
+2. **Setup wizard.** Detect installed CLI/VS Code/WSL clients and show separate
+   results: hook installed, trusted by the client, event received, metadata received.
+   The installer currently adds entries but cannot establish trust on the user's behalf.
+3. **Automatic selection settings.** Priority-based selection and manual pinning
+   for 30 seconds already work. Add a configurable duration and a new-question
+   indicator that remains visible while another session is selected manually.
+4. **Data age and waiting time.** Show the time since the last update and how long
+   a session has been waiting for an answer. Distinguish missing data from stale data.
+5. **Easy cleanup of synthetic/stuck sessions and bounded retention.** Add
+   `forget`/`prune`, a queue size limit, cleanup of old metadata/diagnostics
+   and recovery from a corrupt snapshot. Keep hooks short.
 
-## Приоритет 2 — больше полезной информации
+## Priority 2 — more useful information
 
-- Время до сброса лимитов и предупреждения при 80/95%, с настраиваемыми порогами.
-- Тихий короткий звук только при QUESTION; отдельная настройка для DONE и ночной режим.
-- Сравнение нескольких сессий на заднем экране; добровольно заданные короткие имена
-  вместо номеров, без автоматического вывода названий проектов/текстов запросов.
-- Автоперелистывание статуса/модели/лимитов на переднем экране, если задний не виден.
-- Режим «офисная приватность»: только цвет/значок, без модели и ID.
-- Состояние соединения и восстановление картинки после аварийного завершения через
-  проверенный TTL элементов. Сейчас корректное завершение очищает экран, принудительное
-  может оставить последнюю картинку.
-- Интеграция с BUSY Bar Manager с проверкой поддержки WebSocket и владения экраном.
+- Time until limits reset and warnings at 80/95%, with configurable thresholds.
+- A quiet, short sound for QUESTION only; a separate setting for DONE and a night mode.
+- Compare multiple sessions on the back display; optional user-supplied short names
+  instead of numbers, without automatically showing project names or prompt text.
+- Automatically cycle through status/model/limits on the front display when the back is hidden.
+- An office privacy mode: color/icon only, without the model or ID.
+- Connection status and display recovery after a crash, using verified element TTL
+  behavior. A clean shutdown currently clears the display; forced termination may
+  leave the last image visible.
+- BUSY Bar Manager integration with checks for WebSocket support and display ownership.
 
-## Совместимость AI-приложений
+## AI application compatibility
 
-### Графические Claude Code клиенты
+### Graphical Claude Code clients
 
-Hooks работают там, где клиент читает settings. Для полного контекста/лимитов
-нужен явно поддержанный канал телеметрии графического клиента. Следующий шаг —
-проверить живые версии VS Code/Desktop на наличие такого канала и добавить отдельный
-адаптер с контрактными тестами. Не патчить установленное расширение и не читать
-OAuth credentials ради неофициального endpoint. Данные statusLine использовать
-только если клиент действительно его вызывает.
+Hooks work where the client reads the settings. Full context/limit information
+requires an explicitly supported telemetry channel from the graphical client. The
+next step is to check running versions of VS Code/Desktop for such a channel and
+add a separate adapter with contract tests. Do not patch the installed extension or
+read OAuth credentials to access an unofficial endpoint. Use statusLine data only
+when the client actually invokes it.
 
-### Codex без hooks и удалённые сессии
+### Codex without hooks and remote sessions
 
-Возможный read-only адаптер app-server событий или локальных lifecycle-записей,
-как у некоторых GitHub-аналогов. Требуются проверка версий, отличие активной сессии
-от старого незавершённого файла, защита от повторных событий и конфликтов с hooks.
-Для SSH/облака — отдельный процесс пересылки только уже нормализованных событий;
-hook не должен сам обращаться к сети. Пока автоматическая поддержка не заявлена.
+A possible read-only adapter could use app-server events or local lifecycle records,
+as some related GitHub projects do. It would need version checks, a way to distinguish
+an active session from an old unfinished file, and protection against duplicate events
+and conflicts with hooks. For SSH/cloud sessions, use a separate process that forwards
+only normalized events; the hook itself must not access the network. Automatic support
+is not currently claimed.
 
-### Обычные ChatGPT / Claude Chat / Cowork
+### Ordinary ChatGPT / Claude Chat / Cowork
 
-Это не тот же процесс, что Codex/Claude Code. Универсальный публичный источник
-жизненного цикла, фактического контекста и квот этим проектом не подтверждён.
-Нужен поддержанный API/расширение со стороны приложения. OCR, подсматривание экрана
-и перехват приватного трафика не являются надёжной заменой. Прошивка BUSY Bar
-этого ограничения не устраняет.
+These are separate processes from Codex/Claude Code. This project has not confirmed
+a universal public source for their lifecycle, actual context occupancy and quotas.
+A supported API/extension from the application is needed. OCR, screen observation
+and interception of private traffic are not reliable substitutes. BUSY Bar firmware
+does not remove this limitation.
 
-## Только после расширения API или прошивки BUSY Bar
+## Requires BUSY Bar API or firmware extensions
 
-- **Эксклюзивные кнопки/крутилка для виджета.** Сейчас WebSocket уведомляет о
-  действии, но не отменяет встроенный обработчик. Нужен API захвата контролов с
-  указанием приложения, TTL и автоматическим освобождением при потере соединения.
-- **Надёжный widget lifecycle на устройстве.** Отдельные события закрытия,
-  перезапуска и изменения владельца отображения позволят корректно восстанавливать
-  UI без периодического повторного рисования.
-- **Работа без компьютера.** Потребуется приложение на самом устройстве и
-  поддерживаемый источник статусов. Это отдельная архитектура, не доработка hook.
+- **Exclusive buttons/encoder for the widget.** The WebSocket currently reports
+  actions but does not cancel the built-in handler. A control-capture API is needed,
+  with an application ID, TTL and automatic release when the connection is lost.
+- **Reliable on-device widget lifecycle.** Dedicated close, restart and display
+  ownership change events would allow the UI to recover correctly without periodic
+  redrawing.
+- **Operation without a computer.** This requires an app on the device itself and
+  a supported status source. It is a separate architecture, rather than a hook enhancement.
 
-Кнопки подтверждения разрешений AI, переключение reasoning и отправка текста
-пока не реализованы: они требуют стабильного адресного API конкретной AI-сессии.
-Скрытие статуса никогда не должно восприниматься как разрешение выполнить действие.
+Buttons for approving AI permissions, changing reasoning settings and sending text
+are not implemented: they require a stable API that addresses a specific AI session.
+Hiding a status must never be interpreted as permission to perform an action.

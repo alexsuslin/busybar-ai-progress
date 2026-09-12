@@ -2,6 +2,11 @@
 
 ## Workflow and communication
 
+- Write all project documentation in English, including README files, guides,
+  compatibility tables, security notes, changelogs, plans/specifications, GitHub release
+  titles and notes, and other public GitHub documentation. Apply this requirement to
+  both new documentation and updates.
+
 - Use `request_user_input` for blocking questions when it is supported in the current
   mode. This lifecycle signal lets BUSY Bar show `QUESTION?`. Do not call unavailable
   tools or fabricate questions just to change the display. If unavailable, ask normally;
@@ -60,5 +65,5 @@
   belong in `docs/ROADMAP.md`, not speculative implementations.
 - Verify current official APIs and inspect third-party licenses before adopting code
   or assets. Distinguish CLI, IDE extension, WSL and native Code from ordinary Chat.
-- Update the Russian beginner README, compatibility matrix, security notes and changelog
+- Update the English beginner README, compatibility matrix, security notes and changelog
   when changing installation, commands, stored fields or user-visible behavior.
