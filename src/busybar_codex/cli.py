@@ -509,6 +509,12 @@ def main(
         )
         return 1
     except OSError as error:
+        if getattr(error, "winerror", None) == 4551:
+            error_stream.write(
+                "Windows Application Control blocked pythonw.exe. "
+                "Tray was not started; use a Python installation allowed by your Windows policy.\n"
+            )
+            return 1
         error_stream.write(f"operational failure: {type(error).__name__}\n")
         return 1
     return 2

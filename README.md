@@ -307,6 +307,12 @@ set the shortcut's **Start in** folder to the project folder.
 The tray stays in Windows for WSL clients; AI-client compatibility is unchanged.
 Linux retains the console daemon and does not install the Windows tray dependency.
 
+If Windows reports that **Application Control blocked pythonw.exe**, the tray did
+not start. Use a Python installation allowed by your device policy or ask the
+policy administrator to review it. The app does not change security policy or
+automatically use another executable to bypass the block. Console mode remains
+available where its Python executable is allowed.
+
 The native Windows menu was exercised with a synthetic worker and an in-memory
 startup store. A complete Windows sign-out/sign-in and every AI-client scenario
 have not been tested.

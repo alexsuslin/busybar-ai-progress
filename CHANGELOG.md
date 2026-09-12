@@ -4,6 +4,9 @@ All notable changes to this project are documented in this file.
 
 ## 0.1.3 - Unreleased
 
+- Explain Windows Application Control error 4551 when it blocks pythonw.exe;
+  leave security policy unchanged and do not bypass the blocked executable.
+
 - Add Windows notification-area mode: `busybar-codex tray --env-file .env` launches
   through isolated `pythonw.exe` and returns the terminal immediately. Also install
   a `busybar-codex-tray` GUI entry point.

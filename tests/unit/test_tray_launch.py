@@ -158,3 +158,25 @@ def test_profiles_for_distinct_state_directories_cannot_overwrite_each_other(
         tray_launch.launch_tray(b, env)
     assert commands[0][-1] != commands[1][-1]
     assert Path(commands[0][-1]).read_bytes() == first
+
+
+def test_cli_explains_application_control_block_without_raw_details(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import io
+
+    from busybar_codex import tray_launch
+    from busybar_codex.cli import main
+
+    class Blocked(OSError):
+        winerror = 4551
+
+    def blocked(*args: object, **kwargs: object) -> None:
+        raise Blocked("PRIVATE blocked executable")
+
+    monkeypatch.setattr(tray_launch, "launch_tray", blocked)
+    error = io.StringIO()
+    assert main(["tray"], environ={}, stderr=error) == 1
+    assert "Windows Application Control" in error.getvalue()
+    assert "pythonw.exe" in error.getvalue()
+    assert "PRIVATE" not in error.getvalue()

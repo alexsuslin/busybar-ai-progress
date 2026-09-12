@@ -61,4 +61,6 @@ Ruling: delay Running/controls until the daemon confirms its instance lock via o
 
 Ruling: scope profile filenames by state-directory hash, keep manual launch available when startup paths are too long, catch registry errors in menu checks, and close the worker after native refresh errors. Each review finding has a synthetic regression test.
 
-Validation: 379 tests passed with six opt-in checks skipped; the native Windows tray test was then run separately and passed. Ruff and Pyright passed. Full Windows sign-in, physical device interaction and end-to-end AI-client checks are not part of this tray test run.
+Validation: 380 tests passed with six opt-in checks skipped; the native Windows tray test was then run separately and passed. Ruff and Pyright passed. Full Windows sign-in, physical device interaction and end-to-end AI-client checks are not part of this tray test run.
+
+Local rollout: actual pythonw launch was blocked by Windows Application Control (4551). The native menu passed with a synthetic worker, but windowless startup and real login remain unverified on this machine. No security policy changes or interpreter bypass were attempted. The tray branch was committed locally; automatic approval review rejected publishing the new branch, so only the earlier 0.1.2 release is public.
