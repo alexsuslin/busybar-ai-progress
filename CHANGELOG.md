@@ -4,6 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## 0.1.3 - Unreleased
 
+- Document signed official Python setup for Windows trust policies that reject
+  uv-managed unsigned pythonw.exe. Verified windowless tray launch after rebuilding
+  the local environment with signed Python 3.13.15; security policy stays unchanged.
+
 - Explain Windows Application Control error 4551 when it blocks pythonw.exe;
   leave security policy unchanged and do not bypass the blocked executable.
 

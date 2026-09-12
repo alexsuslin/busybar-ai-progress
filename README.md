@@ -308,10 +308,28 @@ The tray stays in Windows for WSL clients; AI-client compatibility is unchanged.
 Linux retains the console daemon and does not install the Windows tray dependency.
 
 If Windows reports that **Application Control blocked pythonw.exe**, the tray did
-not start. Use a Python installation allowed by your device policy or ask the
-policy administrator to review it. The app does not change security policy or
-automatically use another executable to bypass the block. Console mode remains
-available where its Python executable is allowed.
+not start. A Python distribution downloaded by uv can have unsigned executables;
+a trust-based Windows policy may reject its windowless launcher. An official
+[Python 3.13 Windows installer](https://www.python.org/downloads/release/python-31315/)
+provides binaries signed by the Python Software Foundation. Verify its installer
+signature, install for the current user, then recreate the project's `.venv` with
+that Python's standard `venv` module. Stop the daemon/tray first and preserve the
+previous environment in an ignored backup directory. Keep the `.venv` path the same
+so existing hooks still point to the correct interpreter.
+
+For the official installer's default per-user location:
+
+```powershell
+& "$env:LOCALAPPDATA/Programs/Python/Python313/python.exe" -I -m venv --without-pip .venv
+uv sync --locked --no-python-downloads --all-groups --link-mode copy
+uv run busybar-codex tray --env-file .env
+```
+
+The existing Windows policy still decides whether the signed installation is
+allowed. The app does not disable protection, remove file trust metadata or
+silently substitute another executable after a policy denial. On the development
+Windows machine, rebuilding the environment with the official signed Python fixed
+the block and both tray/daemon locks were confirmed held after windowless launch.
 
 The native Windows menu was exercised with a synthetic worker and an in-memory
 startup store. A complete Windows sign-out/sign-in and every AI-client scenario
