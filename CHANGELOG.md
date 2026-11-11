@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## 0.1.3 - Unreleased
+
+- Document signed official Python setup for Windows trust policies that reject
+  uv-managed unsigned pythonw.exe. Verified windowless tray launch after rebuilding
+  the local environment with signed Python 3.13.15; security policy stays unchanged.
+
+- Explain Windows Application Control error 4551 when it blocks pythonw.exe;
+  leave security policy unchanged and do not bypass the blocked executable.
+
+- Add Windows notification-area mode: `busybar-codex tray --env-file .env` launches
+  through isolated `pythonw.exe` and returns the terminal immediately. Also install
+  a `busybar-codex-tray` GUI entry point.
+- Add native Start, Stop, Restart, Show/Hide display, Start with Windows and Exit
+  actions. Stop/Restart are cooperative; an unrelated console daemon is not killed.
+- Add optional per-user login startup through one owned HKCU Run value. Startup is
+  off by default, removable from the menu, and preserves conflicting entries.
+- Store bounded path-only launch profiles per state directory. Reload the explicit
+  env/TOML file on tray launch without saving tokens or unrelated shell settings.
+- Add original tray artwork and the unmodified Windows-only pystray dependency.
+  Synthetic worker/startup tests and an opt-in native Windows menu smoke test cover
+  launch, controls, restarts, conflicts, long paths, and safe error cleanup. Full
+  sign-out/sign-in and end-to-end AI-client verification remain separate.
+
 ## 0.1.2 - 2026-09-12
 
 - Add quiet status motion: a small work marker, gentle ASK pulse, and a two-second

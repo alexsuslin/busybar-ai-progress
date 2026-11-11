@@ -2,6 +2,8 @@
 
 ## Workflow and communication
 
+- For continuing work or changing scope, read [the current handoff](docs/HANDOFF.md).
+
 - Write all project documentation in English, including README files, guides,
   compatibility tables, security notes, changelogs, plans/specifications, GitHub release
   titles and notes, and other public GitHub documentation. Apply this requirement to
