@@ -8,12 +8,11 @@ in [the design review](RESEARCH.md).
 
 ## Outcome and acceptance
 
-- Current goal: pilot project-scaffolding 0.3.0 additive adoption in this repository.
-- Acceptance: preserve existing guidance and application behavior; add a populated
-  handoff, link it from AGENTS.md, and record provenance in .scaffold.json.
-- Scope: documentation and provenance in busybar-ai-progress only. On 2026-11-11
-  the owner authorized committing adoption and pushing the current branch. Other
-  projects, merging to main, releases and live device changes are outside scope.
+- Current goal: restore Ubuntu CI on feat/windows-tray after the adoption pilot.
+- Acceptance: Pyright passes for Linux and Windows, the startup tests pass, and
+  branch CI succeeds after pushing the fix.
+- Scope: the owner authorized committing and pushing the Pyright fix on this branch.
+  The fix guards the registry implementation with an explicit Windows platform check.
 - Existing hooks, AI-client settings, daemon/tray processes, startup registration
   and devices are not installation or deployment targets of this adoption.
 
@@ -29,12 +28,11 @@ in [the design review](RESEARCH.md).
   See the roadmap and changelog for details and limitations.
 - Project version: 0.1.3.dev1; CHANGELOG.md lists 0.1.3 as unreleased.
   The base commit documents signed Python setup for Windows tray trust policies.
-- Implemented in this working tree: docs/HANDOFF.md and .scaffold.json added;
+- Adoption pilot: docs/HANDOFF.md and .scaffold.json added;
   AGENTS.md keeps its existing rules and gains a link to this document.
-- Delivery: prepared for the authorized commit and push to feat/windows-tray.
-  Resolve the commit containing this handoff and check its remote branch / CI
-  status for delivery evidence; this text precedes the push. Integration into
-  main and release publication are not part of this task.
+- Delivery: adoption is in commit 45a1e2e on feat/windows-tray. Its Ubuntu CI
+  reported 31 Pyright errors in startup.py. The same errors occurred before adoption.
+  Check the CI run for the commit containing this fix for remote validation.
 - Deployment / live observation: no hardware, emulator-service, real WSL, native
   tray or end-to-end AI-client checks are part of this adoption.
 
@@ -57,6 +55,11 @@ its configuration is not evidence of a successful remote run.
 
 ## Evidence
 
+On 2026-11-11, `pyright --pythonplatform Linux` reproduced all 31 registry errors
+before the fix. After the fix, Pyright reported zero errors for both Linux and
+Windows targets. The Windows quality gate had 380 tests pass, with 2 opt-in tests
+skipped and 4 hardware/emulator tests excluded. Ruff lint and formatting passed.
+
 | Working state | Check / environment | Result |
 | --- | --- | --- |
 | Base revision | doctor and adopt --preview, scaffold 0.3.0 | Missing handoff; preview passed |
@@ -76,9 +79,7 @@ end-to-end AI-client, Linux, package-build or secret-scan result is claimed here
 
 ## Remaining work
 
-- Next action after the authorized push: review the adoption commit on the current
-  branch and any reported CI results. A merge, release or product change requires
-  its own task scope.
+- Review branch CI for the Pyright fix before integrating feat/windows-tray.
 - Adoption does not configure Copier updates. Manifest hashes describe the original
   generated files; customizing this handoff does not require changing those hashes.
 - Product and integration follow-ups remain in the roadmap. Keep simulated results,

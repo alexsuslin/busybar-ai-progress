@@ -47,37 +47,34 @@ def _format_command(command: object) -> str:
     return value
 
 
-class _RegistryRunStore:
-    def __init__(self) -> None:
-        if sys.platform != "win32":
-            raise RuntimeError("startup_windows_required")
+if sys.platform == "win32":
+    import winreg
 
-    def read(self) -> str | None:
-        import winreg
+    class _RegistryRunStore:
+        def read(self) -> str | None:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
+                    value, kind = winreg.QueryValueEx(key, _RUN_VALUE)
+            except FileNotFoundError:
+                return None
+            if kind != winreg.REG_SZ or not isinstance(value, str):
+                raise StartupConflictError("startup_value_conflict")
+            return value
 
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY) as key:
-                value, kind = winreg.QueryValueEx(key, _RUN_VALUE)
-        except FileNotFoundError:
-            return None
-        if kind != winreg.REG_SZ or not isinstance(value, str):
-            raise StartupConflictError("startup_value_conflict")
-        return value
+        def write(self, value: str) -> None:
+            with winreg.CreateKeyEx(
+                winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE
+            ) as key:
+                winreg.SetValueEx(key, _RUN_VALUE, 0, winreg.REG_SZ, value)
 
-    def write(self, value: str) -> None:
-        import winreg
-
-        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
-            winreg.SetValueEx(key, _RUN_VALUE, 0, winreg.REG_SZ, value)
-
-    def delete(self) -> None:
-        import winreg
-
-        try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.DeleteValue(key, _RUN_VALUE)
-        except FileNotFoundError:
-            pass
+        def delete(self) -> None:
+            try:
+                with winreg.OpenKey(
+                    winreg.HKEY_CURRENT_USER, _RUN_KEY, 0, winreg.KEY_SET_VALUE
+                ) as key:
+                    winreg.DeleteValue(key, _RUN_VALUE)
+            except FileNotFoundError:
+                pass
 
 
 class StartupRegistration:
@@ -85,7 +82,13 @@ class StartupRegistration:
 
     def __init__(self, command: Sequence[str], store: RunStore | None = None) -> None:
         self._command = _format_command(command)
-        self._store: RunStore = store if store is not None else _RegistryRunStore()
+        self._store: RunStore
+        if store is not None:
+            self._store = store
+        elif sys.platform == "win32":
+            self._store = _RegistryRunStore()
+        else:
+            raise RuntimeError("startup_windows_required")
 
     def enabled(self) -> bool:
         try:
